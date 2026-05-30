@@ -14,10 +14,13 @@ export function Home() {
       </div>
       <div className="flex gap-3">
         <Button asChild>
-          <Link to="/wrap">Wrap a token</Link>
+          <Link to="/create">Create a distribution</Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/airdrop">Create an airdrop</Link>
+          <Link to="/dashboard">My distributions</Link>
+        </Button>
+        <Button variant="ghost" asChild>
+          <Link to="/wrap">Wrap a token</Link>
         </Button>
       </div>
     </div>

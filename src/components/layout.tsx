@@ -4,9 +4,11 @@ import { cn } from "@/lib/utils"
 
 const NAV = [
   { to: "/", label: "Home", end: true },
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/create", label: "Create" },
   { to: "/wrap", label: "Wrap" },
   { to: "/unwrap", label: "Unwrap" },
-  { to: "/airdrop", label: "Airdrop" },
+  { to: "/airdrop", label: "Airdrop lab" },
 ]
 
 export function Layout() {

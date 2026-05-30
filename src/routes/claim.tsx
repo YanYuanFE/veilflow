@@ -102,7 +102,15 @@ export function Claim() {
             </Info>
           </div>
 
-          {!supported ? (
+          {d.type === "disperse" ? (
+            <Banner>
+              Disperse sends tokens directly — there's nothing to claim here. Check your confidential balance on the{" "}
+              <a className="underline" href="/wrap">
+                token page
+              </a>
+              .
+            </Banner>
+          ) : !supported ? (
             <Banner>Claiming for {d.type} distributions isn't available yet.</Banner>
           ) : !d.contractAddress ? (
             <Banner>This distribution isn't live yet — check back later.</Banner>

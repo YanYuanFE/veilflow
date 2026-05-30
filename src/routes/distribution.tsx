@@ -18,6 +18,7 @@ import {
   useAdminDiscloseToParty,
 } from "@tokenops/sdk/fhe-vesting/react"
 import { DisclosureType } from "@tokenops/sdk/fhe-vesting"
+import { useDisperse } from "@tokenops/sdk/fhe-disperse/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,6 +34,7 @@ import {
 } from "@/lib/api"
 
 const FACTORY_SEPOLIA = "0xbE6A3B78B36684fFee48De77d47Bc3393F5Acd4c" as Address
+const DISPERSE_SINGLETON = "0x710dD9885Cc9986EfD234E7719483147a6d8DBb4" as Address
 const EXPLORER = "https://sepolia.etherscan.io"
 
 function err(e: unknown): string {
@@ -88,6 +90,8 @@ export function DistributionDetail() {
         !d.contractAddress ? <DeployCard d={d} /> : <IssueCard d={d} />
       ) : d.type === "vesting" ? (
         !d.contractAddress ? <VestingDeployCard d={d} /> : <VestingManageCard d={d} />
+      ) : d.type === "disperse" ? (
+        <DisperseCard d={d} />
       ) : (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -816,6 +820,138 @@ function VestingDisclosureCard({ d }: { d: Distribution }) {
           </p>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function DisperseCard({ d }: { d: Distribution }) {
+  const queryClient = useQueryClient()
+  const sdk = useZamaSDK()
+  const { address } = useAccount()
+  const decimals = numberConfig(d, "decimals", 6)
+  const approve = useConfidentialApprove({ tokenAddress: d.token as Address })
+  const disperse = useDisperse({ encryptor: () => sdk.relayer })
+
+  const [input, setInput] = useState("")
+  const [progress, setProgress] = useState<string>()
+  const [error, setError] = useState<string>()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const loadCsv = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const lines = String(reader.result ?? "")
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+      if (lines[0] && !isAddress(lines[0].split(/[,\s]+/)[0])) lines.shift()
+      setInput((v) => (v ? `${v}\n` : "") + lines.join("\n"))
+    }
+    reader.readAsText(file)
+  }
+
+  const { entries, errors } = useMemo(() => parseEntries(input, decimals), [input, decimals])
+  const done = d.status === "completed"
+
+  const onDisperse = async () => {
+    setError(undefined)
+    if (entries.length === 0) return
+    try {
+      // Direct mode: approve the singleton as operator, then send in one encrypted batch.
+      setProgress("Approving operator…")
+      await approve.mutateAsync({ spender: DISPERSE_SINGLETON, until: Math.floor(Date.now() / 1000) + 86_400 })
+      setProgress(`Dispersing to ${entries.length}…`)
+      const res = await disperse.mutateAsync({
+        token: d.token as Address,
+        mode: "direct",
+        recipients: entries.map((e) => e.recipient),
+        amounts: entries.map((e) => e.amount),
+      })
+      await patchDistribution(d.id, { status: "completed", deployTxHash: res.hash })
+      queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
+      setInput("")
+      toast.success(`Dispersed to ${entries.length} recipient${entries.length === 1 ? "" : "s"}`)
+    } catch (e) {
+      setError(err(e))
+      toast.error(err(e))
+    } finally {
+      setProgress(undefined)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Disperse</CardTitle>
+        <CardDescription>
+          One <span className="font-mono">address, amount</span> per line, or upload a CSV. Sends from your
+          confidential balance in a single encrypted batch — recipients receive instantly, no claim.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {done ? (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+            Dispersed ✓ — recipients received tokens into their confidential balance.
+            {d.deployTxHash && (
+              <>
+                {" "}
+                <a className="underline" href={`${EXPLORER}/tx/${d.deployTxHash}`} target="_blank" rel="noreferrer">
+                  View tx
+                </a>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <textarea
+              className="min-h-28 w-full rounded-lg border bg-transparent p-2.5 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                disabled={!address}
+                onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
+              >
+                Add my address
+              </Button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) loadCsv(f)
+                  e.target.value = ""
+                }}
+              />
+              <Button variant="ghost" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+                Upload CSV
+              </Button>
+              <span className="text-muted-foreground">
+                {entries.length} recipient{entries.length === 1 ? "" : "s"}
+                {errors.length > 0 && ` · ${errors.length} error${errors.length > 1 ? "s" : ""}`}
+              </span>
+            </div>
+            {errors.length > 0 && (
+              <ul className="space-y-0.5 text-xs text-destructive">
+                {errors.slice(0, 5).map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            )}
+            <Button onClick={onDisperse} disabled={entries.length === 0 || !!progress}>
+              {progress ?? (entries.length ? `Disperse to ${entries.length}` : "Disperse")}
+            </Button>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </>
+        )}
       </CardContent>
     </Card>
   )

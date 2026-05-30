@@ -17,7 +17,7 @@ import { createDistribution, type DistributionType } from "@/lib/api"
 const TYPES: { id: DistributionType; title: string; blurb: string; ready: boolean }[] = [
   { id: "airdrop", title: "Airdrop", blurb: "Signature-authorized claims with encrypted per-recipient amounts.", ready: true },
   { id: "vesting", title: "Vesting", blurb: "Linear unlock with cliff & initial release, claimed over time.", ready: true },
-  { id: "disperse", title: "Disperse", blurb: "One-shot batch payout, encrypted in a single proof.", ready: false },
+  { id: "disperse", title: "Disperse", blurb: "One-shot batch payout — recipients receive directly, no claim.", ready: true },
 ]
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address
@@ -86,13 +86,15 @@ export function Create() {
                 cliffAmountBps: 0,
                 isRevocable: revocable,
               }
-            : {
-                decimals: tokenMeta.decimals!,
-                startTimestamp: startTs,
-                endTimestamp: endTs,
-                canExtendClaimWindow: canExtend,
-                admin: address!, // the connected wallet — signs every claim authorization
-              },
+            : type === "disperse"
+              ? { decimals: tokenMeta.decimals!, mode: "direct" }
+              : {
+                  decimals: tokenMeta.decimals!,
+                  startTimestamp: startTs,
+                  endTimestamp: endTs,
+                  canExtendClaimWindow: canExtend,
+                  admin: address!, // the connected wallet — signs every claim authorization
+                },
       }),
     onSuccess: (d) => {
       toast.success("Draft created")
@@ -108,7 +110,8 @@ export function Create() {
 
   const baseValid =
     isConnected && !!name.trim() && !!slug && validToken && isConfidential && tokenMeta.decimals !== undefined
-  const canSubmit = baseValid && (type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : false)
+  const canSubmit =
+    baseValid && (type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : type === "disperse" ? true : false)
 
   return (
     <div className="space-y-6">
@@ -253,6 +256,13 @@ export function Create() {
                 </p>
               )}
             </div>
+          )}
+
+          {type === "disperse" && (
+            <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Disperse sends tokens directly to recipients in one batch — no claim step, no schedule. You'll add
+              recipients &amp; amounts after creating.
+            </p>
           )}
 
           <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>

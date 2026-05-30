@@ -1,4 +1,4 @@
-import { ConnectWallet } from "@/components/connect-wallet"
+import { ConnectButton } from "@rainbow-me/rainbowkit"
 
 function App() {
   return (
@@ -10,7 +10,7 @@ function App() {
           encrypted amounts. Powered by Zama FHE &amp; the TokenOps SDK.
         </p>
       </div>
-      <ConnectWallet />
+      <ConnectButton />
     </main>
   )
 }

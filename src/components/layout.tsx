@@ -8,7 +8,7 @@ const NAV = [
   { to: "/create", label: "Create" },
   { to: "/wrap", label: "Wrap" },
   { to: "/unwrap", label: "Unwrap" },
-  { to: "/airdrop", label: "Airdrop lab" },
+  { to: "/audit", label: "Audit" },
 ]
 
 export function Layout() {

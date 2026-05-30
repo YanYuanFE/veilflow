@@ -3,19 +3,24 @@ import { useNavigate } from "react-router-dom"
 import { useMutation } from "@tanstack/react-query"
 import { isAddress, type Address } from "viem"
 import { useAccount } from "wagmi"
+import { toast } from "sonner"
+import { useIsConfidential } from "@zama-fhe/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { slugify } from "@/lib/format"
+import { useTokenMeta } from "@/lib/tokens"
 import { createDistribution, type DistributionType } from "@/lib/api"
 
 const TYPES: { id: DistributionType; title: string; blurb: string; ready: boolean }[] = [
   { id: "airdrop", title: "Airdrop", blurb: "Signature-authorized claims with encrypted per-recipient amounts.", ready: true },
-  { id: "vesting", title: "Vesting", blurb: "Linear unlock with selective disclosure for auditors.", ready: false },
+  { id: "vesting", title: "Vesting", blurb: "Linear unlock with cliff & initial release, claimed over time.", ready: true },
   { id: "disperse", title: "Disperse", blurb: "One-shot batch payout, encrypted in a single proof.", ready: false },
 ]
+
+const ZERO = "0x0000000000000000000000000000000000000000" as Address
 
 function err(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -30,12 +35,35 @@ export function Create() {
   const [slug, setSlug] = useState("")
   const [slugEdited, setSlugEdited] = useState(false)
   const [token, setToken] = useState("")
-  const [durationDays, setDurationDays] = useState("30")
+  const [start, setStart] = useState("") // datetime-local; blank = opens at deploy
+  const [end, setEnd] = useState("") // datetime-local; required
   const [canExtend, setCanExtend] = useState(false)
+  // Vesting schedule (set once; applies to every recipient added later)
+  const [cliffDays, setCliffDays] = useState("0")
+  const [intervalDays, setIntervalDays] = useState("30")
+  const [initialUnlockPct, setInitialUnlockPct] = useState("0")
+  const [revocable, setRevocable] = useState(false)
 
   const validToken = isAddress(token)
-  const days = Number(durationDays)
-  const validDays = Number.isFinite(days) && days > 0
+  const confCheck = useIsConfidential(validToken ? (token as Address) : ZERO, { enabled: validToken })
+  const isConfidential = confCheck.data === true
+  const tokenMeta = useTokenMeta(validToken && isConfidential ? (token as Address) : undefined)
+  const now = Math.floor(Date.now() / 1000)
+  const startTs = start ? Math.floor(new Date(start).getTime() / 1000) : null
+  const endTs = end ? Math.floor(new Date(end).getTime() / 1000) : null
+  const validWindow = endTs !== null && endTs > now && (startTs === null || endTs > startTs)
+
+  const cliffDaysN = Number(cliffDays)
+  const intervalDaysN = Number(intervalDays)
+  const initialPctN = Number(initialUnlockPct)
+  const vestingValid =
+    startTs !== null &&
+    endTs !== null &&
+    endTs > startTs &&
+    endTs > now &&
+    Number.isFinite(cliffDaysN) && cliffDaysN >= 0 && cliffDaysN * 86_400 <= endTs - startTs &&
+    Number.isFinite(intervalDaysN) && intervalDaysN >= 1 &&
+    Number.isFinite(initialPctN) && initialPctN >= 0 && initialPctN <= 100
 
   const create = useMutation({
     mutationFn: () =>
@@ -45,9 +73,32 @@ export function Create() {
         type: type!,
         creator: address!,
         token: token as Address,
-        config: { decimals: 6, durationDays: days, canExtendClaimWindow: canExtend },
+        config:
+          type === "vesting"
+            ? {
+                decimals: tokenMeta.decimals!,
+                startTimestamp: startTs,
+                endTimestamp: endTs,
+                cliffSeconds: Math.round(cliffDaysN * 86_400),
+                releaseIntervalSecs: Math.round(intervalDaysN * 86_400),
+                timelockSeconds: 0,
+                initialUnlockBps: Math.round(initialPctN * 100),
+                cliffAmountBps: 0,
+                isRevocable: revocable,
+              }
+            : {
+                decimals: tokenMeta.decimals!,
+                startTimestamp: startTs,
+                endTimestamp: endTs,
+                canExtendClaimWindow: canExtend,
+                admin: address!, // the connected wallet — signs every claim authorization
+              },
       }),
-    onSuccess: (d) => navigate(`/d/${d.id}`),
+    onSuccess: (d) => {
+      toast.success("Draft created")
+      navigate(`/d/${d.id}`)
+    },
+    onError: (e) => toast.error(err(e)),
   })
 
   const onName = (v: string) => {
@@ -55,7 +106,9 @@ export function Create() {
     if (!slugEdited) setSlug(slugify(v))
   }
 
-  const canSubmit = isConnected && type === "airdrop" && name.trim() && slug && validToken && validDays
+  const baseValid =
+    isConnected && !!name.trim() && !!slug && validToken && isConfidential && tokenMeta.decimals !== undefined
+  const canSubmit = baseValid && (type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : false)
 
   return (
     <div className="space-y-6">
@@ -123,18 +176,82 @@ export function Create() {
             <Label htmlFor="token">Confidential token address</Label>
             <Input id="token" placeholder="0x…" value={token} onChange={(e) => setToken(e.target.value.trim())} disabled={!type} />
             {token && !validToken && <p className="text-sm text-destructive">Invalid address.</p>}
+            {validToken && confCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
+            {validToken && confCheck.data === false && (
+              <p className="text-sm text-destructive">
+                Not a confidential ERC-7984 token. Use a confidential token address (e.g. cUSDT 0x4E7B…4491).
+              </p>
+            )}
+            {validToken && confCheck.error && (
+              <p className="text-sm text-destructive">Couldn't verify token: {confCheck.error.message}</p>
+            )}
+            {validToken && isConfidential && tokenMeta.symbol && (
+              <p className="text-xs text-muted-foreground">
+                ✓ {tokenMeta.symbol}
+                {tokenMeta.name ? ` · ${tokenMeta.name}` : ""} · {tokenMeta.decimals} decimals
+              </p>
+            )}
           </div>
 
           {type === "airdrop" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="days">Claim window (days)</Label>
-                <Input id="days" inputMode="numeric" value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="start">Claim opens</Label>
+                  <Input id="start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Blank = opens the moment it's deployed.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end">Claim closes</Label>
+                  <Input id="end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                  {end && !validWindow && (
+                    <p className="text-sm text-destructive">Must be in the future{start ? " and after the open time" : ""}.</p>
+                  )}
+                </div>
               </div>
-              <label className="flex items-end gap-2 pb-2 text-sm">
+              <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={canExtend} onChange={(e) => setCanExtend(e.target.checked)} />
-                Allow extending the claim window
+                Allow extending the claim window later
               </label>
+            </div>
+          )}
+
+          {type === "vesting" && (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="vstart">Vesting starts</Label>
+                  <Input id="vstart" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vend">Vesting ends</Label>
+                  <Input id="vend" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cliff">Cliff (days)</Label>
+                  <Input id="cliff" inputMode="numeric" value={cliffDays} onChange={(e) => setCliffDays(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interval">Release interval (days)</Label>
+                  <Input id="interval" inputMode="numeric" value={intervalDays} onChange={(e) => setIntervalDays(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="initial">Initial unlock (%)</Label>
+                  <Input id="initial" inputMode="decimal" value={initialUnlockPct} onChange={(e) => setInitialUnlockPct(e.target.value)} />
+                </div>
+                <label className="flex items-end gap-2 pb-2 text-sm">
+                  <input type="checkbox" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
+                  Revocable by admin
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                These terms apply to every recipient; you add recipients (with per-recipient amounts) after deploying.
+              </p>
+              {(start || end || cliffDays !== "0" || initialUnlockPct !== "0") && !vestingValid && (
+                <p className="text-sm text-destructive">
+                  Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial unlock 0–100%.
+                </p>
+              )}
             </div>
           )}
 

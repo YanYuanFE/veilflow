@@ -1,3 +1,3 @@
-// Sepolia RPC endpoint. Override with VITE_SEPOLIA_RPC_URL; falls back to a public node.
-export const SEPOLIA_RPC_URL =
-  import.meta.env.VITE_SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com"
+// Sepolia RPC endpoint, hardcoded (not env). Must allow eth_call — the keyless ZAN
+// endpoint blocks it for unregistered accounts. Used by wagmi + the Zama relayer.
+export const SEPOLIA_RPC_URL = 'https://sepolia.gateway.tenderly.co'

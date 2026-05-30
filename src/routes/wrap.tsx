@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { isAddress, parseUnits, formatUnits, type Address } from "viem"
 import { useAccount } from "wagmi"
-import { useShield, useConfidentialBalance } from "@zama-fhe/react-sdk"
+import { toast } from "sonner"
+import { useShield, useConfidentialBalance, useIsWrapper } from "@zama-fhe/react-sdk"
+import { useTokenDecimals, useUnderlyingToken } from "@/lib/tokens"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,19 +20,32 @@ export function Wrap() {
   const valid = isAddress(token)
   const tokenAddress = (valid ? (token as Address) : ZERO)
 
-  // ERC-7984 confidential tokens use 6 decimals by convention.
-  const decimals = 6
+  // Validate it's actually a confidential ERC-7984 wrapper before touching it —
+  // otherwise underlying()/shield revert with a cryptic RPC error.
+  const wrapperCheck = useIsWrapper(tokenAddress, { enabled: valid })
+  const isWrapper = wrapperCheck.data === true
+
+  // Balance is in the confidential token's decimals; the shield deposit is in
+  // the underlying ERC-20's decimals (can differ, e.g. WETH 18 → cWETH 6).
+  const confidentialDecimals = useTokenDecimals(valid && isWrapper ? tokenAddress : undefined)
+  const underlyingToken = useUnderlyingToken(valid && isWrapper ? tokenAddress : undefined)
+  const underlyingDecimals = useTokenDecimals(underlyingToken)
   const balance = useConfidentialBalance(
     { tokenAddress },
-    { enabled: valid && isConnected && reveal },
+    { enabled: valid && isWrapper && isConnected && reveal },
   )
   const shield = useShield({ tokenAddress })
 
   const onWrap = async () => {
-    if (!valid || !amount) return
-    await shield.mutateAsync({ amount: parseUnits(amount, decimals) })
-    setAmount("")
-    if (reveal) await balance.refetch()
+    if (!valid || !amount || underlyingDecimals === undefined) return
+    try {
+      await shield.mutateAsync({ amount: parseUnits(amount, underlyingDecimals) })
+      setAmount("")
+      toast.success("Wrapped into confidential balance")
+      if (reveal) await balance.refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
@@ -57,17 +72,27 @@ export function Wrap() {
               onChange={(e) => setToken(e.target.value.trim())}
             />
             {token && !valid && <p className="text-sm text-destructive">Invalid address.</p>}
+            {valid && wrapperCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
+            {valid && wrapperCheck.data === false && (
+              <p className="text-sm text-destructive">
+                Not a confidential ERC-7984 wrapper. Paste the confidential token address (e.g. cUSDT
+                0x4E7B…4491), not the underlying ERC-20.
+              </p>
+            )}
+            {valid && wrapperCheck.error && (
+              <p className="text-sm text-destructive">Couldn't verify token: {wrapperCheck.error.message}</p>
+            )}
           </div>
 
-          {valid && (
+          {valid && isWrapper && (
             <div className="flex items-center justify-between rounded-md border p-3 text-sm">
               <span className="text-muted-foreground">Confidential balance</span>
               {reveal ? (
                 <span className="font-mono">
-                  {balance.isLoading
-                    ? "decrypting…"
-                    : balance.data != null
-                      ? formatUnits(balance.data, decimals)
+                  {balance.data != null && confidentialDecimals !== undefined
+                    ? formatUnits(balance.data, confidentialDecimals)
+                    : balance.isLoading
+                      ? "decrypting…"
                       : "—"}
                 </span>
               ) : (
@@ -89,7 +114,7 @@ export function Wrap() {
             />
           </div>
 
-          <Button onClick={onWrap} disabled={!isConnected || !valid || !amount || shield.isPending}>
+          <Button onClick={onWrap} disabled={!isConnected || !valid || !isWrapper || !amount || underlyingDecimals === undefined || shield.isPending}>
             {shield.isPending ? "Wrapping…" : "Wrap"}
           </Button>
           {!isConnected && <p className="text-sm text-muted-foreground">Connect your wallet to wrap.</p>}

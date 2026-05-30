@@ -86,8 +86,9 @@ export function patchDistribution(
   return request<Distribution>(`/distributions/${id}`, { method: "PATCH", body: JSON.stringify(patch) })
 }
 
-export function listRecipients(id: string) {
-  return request<RecipientArtifact[]>(`/distributions/${id}/recipients`)
+export function listRecipients(id: string, recipient?: Address) {
+  const q = recipient ? `?recipient=${recipient}` : ""
+  return request<RecipientArtifact[]>(`/distributions/${id}/recipients${q}`)
 }
 
 export function addRecipient(

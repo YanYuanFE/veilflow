@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { db } from "../../_db"
 import { distributions, recipients } from "../../_schema"
 import { bad, HttpError, methodNotAllowed, normalizeAddress } from "../../_http"
@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const distributionId = req.query.id
   if (typeof distributionId !== "string") return bad(res, "id required")
   try {
-    if (req.method === "GET") return await list(distributionId, res)
+    if (req.method === "GET") return await list(distributionId, req, res)
     if (req.method === "POST") return await add(distributionId, req, res)
     return methodNotAllowed(res, ["GET", "POST"])
   } catch (e) {
@@ -19,12 +19,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-async function list(distributionId: string, res: VercelResponse) {
-  const rows = await db
-    .select()
-    .from(recipients)
-    .where(eq(recipients.distributionId, distributionId))
-    .orderBy(desc(recipients.createdAt))
+// GET ?recipient=0x.. → just that recipient's artifact(s) (the claim page).
+// Without it → all artifacts for the distribution (the issuer's dashboard).
+async function list(distributionId: string, req: VercelRequest, res: VercelResponse) {
+  const { recipient } = req.query
+  const where =
+    typeof recipient === "string"
+      ? and(eq(recipients.distributionId, distributionId), eq(recipients.recipient, normalizeAddress(recipient, "recipient")))
+      : eq(recipients.distributionId, distributionId)
+  const rows = await db.select().from(recipients).where(where).orderBy(desc(recipients.createdAt))
   return res.status(200).json(rows)
 }
 

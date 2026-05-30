@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { isAddress, parseUnits, formatUnits, type Address } from "viem"
 import { useAccount } from "wagmi"
-import { useUnshield, useConfidentialBalance } from "@zama-fhe/react-sdk"
+import { toast } from "sonner"
+import { useUnshield, useConfidentialBalance, useIsWrapper } from "@zama-fhe/react-sdk"
+import { useTokenDecimals } from "@/lib/tokens"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,19 +20,28 @@ export function Unwrap() {
   const valid = isAddress(token)
   const tokenAddress = (valid ? (token as Address) : ZERO)
 
-  // ERC-7984 confidential tokens use 6 decimals by convention.
-  const decimals = 6
+  const wrapperCheck = useIsWrapper(tokenAddress, { enabled: valid })
+  const isWrapper = wrapperCheck.data === true
+
+  // Unshield burns confidential tokens, so the amount is in the confidential
+  // token's decimals — same units as the balance shown below.
+  const decimals = useTokenDecimals(valid && isWrapper ? tokenAddress : undefined)
   const balance = useConfidentialBalance(
     { tokenAddress },
-    { enabled: valid && isConnected && reveal },
+    { enabled: valid && isWrapper && isConnected && reveal },
   )
   const unshield = useUnshield({ tokenAddress })
 
   const onUnwrap = async () => {
-    if (!valid || !amount) return
-    await unshield.mutateAsync({ amount: parseUnits(amount, decimals) })
-    setAmount("")
-    if (reveal) await balance.refetch()
+    if (!valid || !amount || decimals === undefined) return
+    try {
+      await unshield.mutateAsync({ amount: parseUnits(amount, decimals) })
+      setAmount("")
+      toast.success("Unwrapped to public ERC-20")
+      if (reveal) await balance.refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   return (
@@ -58,17 +69,27 @@ export function Unwrap() {
               onChange={(e) => setToken(e.target.value.trim())}
             />
             {token && !valid && <p className="text-sm text-destructive">Invalid address.</p>}
+            {valid && wrapperCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
+            {valid && wrapperCheck.data === false && (
+              <p className="text-sm text-destructive">
+                Not a confidential ERC-7984 wrapper. Paste the confidential token address, not the
+                underlying ERC-20.
+              </p>
+            )}
+            {valid && wrapperCheck.error && (
+              <p className="text-sm text-destructive">Couldn't verify token: {wrapperCheck.error.message}</p>
+            )}
           </div>
 
-          {valid && (
+          {valid && isWrapper && (
             <div className="flex items-center justify-between rounded-md border p-3 text-sm">
               <span className="text-muted-foreground">Confidential balance</span>
               {reveal ? (
                 <span className="font-mono">
-                  {balance.isLoading
-                    ? "decrypting…"
-                    : balance.data != null
-                      ? formatUnits(balance.data, decimals)
+                  {balance.data != null && decimals !== undefined
+                    ? formatUnits(balance.data, decimals)
+                    : balance.isLoading
+                      ? "decrypting…"
                       : "—"}
                 </span>
               ) : (
@@ -90,7 +111,7 @@ export function Unwrap() {
             />
           </div>
 
-          <Button onClick={onUnwrap} disabled={!isConnected || !valid || !amount || unshield.isPending}>
+          <Button onClick={onUnwrap} disabled={!isConnected || !valid || !isWrapper || !amount || decimals === undefined || unshield.isPending}>
             {unshield.isPending ? "Unwrapping…" : "Unwrap"}
           </Button>
           {!isConnected && <p className="text-sm text-muted-foreground">Connect your wallet to unwrap.</p>}

@@ -1,17 +1,22 @@
-import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { Layout } from "@/components/layout"
+import { Home } from "@/routes/home"
+import { Wrap } from "@/routes/wrap"
+import { Unwrap } from "@/routes/unwrap"
+import { Airdrop } from "@/routes/airdrop"
 
 function App() {
   return (
-    <main className="min-h-svh flex flex-col items-center justify-center gap-8 p-8 text-center">
-      <div className="space-y-3">
-        <h1 className="text-4xl font-semibold tracking-tight">VeilFlow</h1>
-        <p className="max-w-md text-muted-foreground">
-          Confidential token distribution — airdrops, disperse, and vesting with
-          encrypted amounts. Powered by Zama FHE &amp; the TokenOps SDK.
-        </p>
-      </div>
-      <ConnectButton />
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="wrap" element={<Wrap />} />
+          <Route path="unwrap" element={<Unwrap />} />
+          <Route path="airdrop" element={<Airdrop />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 

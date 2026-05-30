@@ -10,5 +10,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
     },
+    // Force a single instance of these so React context (WagmiProvider, etc.)
+    // is shared — pnpm can install multiple peer-hashed copies otherwise.
+    dedupe: ["wagmi", "viem", "@tanstack/react-query", "@rainbow-me/rainbowkit", "react", "react-dom"],
   },
 })

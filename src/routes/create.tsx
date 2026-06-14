@@ -8,9 +8,11 @@ import { useIsConfidential } from "@zama-fhe/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DateTimePicker } from "@/components/ui/datetime-picker"
+import { Kicker, Folio, Notice } from "@/components/editorial"
 import { cn } from "@/lib/utils"
 import { slugify } from "@/lib/format"
+import { useNowSeconds } from "@/lib/use-now"
 import { useTokenMeta } from "@/lib/tokens"
 import { createDistribution, type DistributionType } from "@/lib/api"
 
@@ -48,7 +50,7 @@ export function Create() {
   const confCheck = useIsConfidential(validToken ? (token as Address) : ZERO, { enabled: validToken })
   const isConfidential = confCheck.data === true
   const tokenMeta = useTokenMeta(validToken && isConfidential ? (token as Address) : undefined)
-  const now = Math.floor(Date.now() / 1000)
+  const now = useNowSeconds()
   const startTs = start ? Math.floor(new Date(start).getTime() / 1000) : null
   const endTs = end ? Math.floor(new Date(end).getTime() / 1000) : null
   const validWindow = endTs !== null && endTs > now && (startTs === null || endTs > startTs)
@@ -114,52 +116,58 @@ export function Create() {
     baseValid && (type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : type === "disperse" ? true : false)
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Create a distribution</h1>
-        <p className="text-muted-foreground">Pick a type, then name it and point it at a confidential token.</p>
-      </div>
+    <div className="space-y-10">
+      <header className="space-y-2">
+        <Kicker>Create</Kicker>
+        <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-tight text-foreground">New distribution</h1>
+        <p className="font-serif text-muted-foreground">
+          Choose an instrument, name it, and point it at a confidential token. Amounts are encrypted in your browser.
+        </p>
+      </header>
 
-      {/* Step 1 — type */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        {TYPES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            disabled={!t.ready}
-            onClick={() => setType(t.id)}
-            className={cn(
-              "rounded-xl border p-4 text-left ring-1 ring-foreground/10 transition-colors",
-              t.ready ? "hover:bg-muted" : "cursor-not-allowed opacity-55",
-              type === t.id && "ring-2 ring-foreground/40 bg-muted",
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{t.title}</span>
-              {!t.ready && <span className="text-xs text-muted-foreground">soon</span>}
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">{t.blurb}</p>
-          </button>
-        ))}
-      </div>
+      {/* Step 1 — instrument */}
+      <section className="space-y-4">
+        <Kicker>№ 01 · Choose an instrument</Kicker>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {TYPES.map((t, i) => (
+            <button
+              key={t.id}
+              type="button"
+              disabled={!t.ready}
+              onClick={() => setType(t.id)}
+              aria-pressed={type === t.id}
+              className={cn(
+                "group rounded-md border p-5 text-left transition-colors",
+                t.ready ? "hover:bg-muted/40" : "cursor-not-allowed opacity-55",
+                type === t.id ? "border-foreground bg-muted/40" : "border-border",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <Folio>№ 0{i + 1}</Folio>
+                <span
+                  className={cn(
+                    "size-2 rounded-full transition-colors",
+                    type === t.id ? "bg-seal" : "ring-1 ring-border ring-inset",
+                  )}
+                  aria-hidden
+                />
+              </div>
+              <h3 className="font-display mt-3 text-xl tracking-tight text-foreground">{t.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t.blurb}</p>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Step 2 — details */}
-      <Card className={type ? "" : "opacity-60"}>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-          <CardDescription>
-            The confidential (ERC-7984) token to distribute. Need one?{" "}
-            <a className="underline" href="/wrap">
-              Wrap an ERC-20 first
-            </a>
-            .
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <section className={cn("space-y-4", !type && "opacity-50")} aria-disabled={!type}>
+        <Kicker>№ 02 · Details</Kicker>
+        <div className="space-y-5 rounded-md border border-border bg-card p-6">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input id="name" placeholder="Series A investor airdrop" value={name} onChange={(e) => onName(e.target.value)} disabled={!type} />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="slug">Slug</Label>
             <Input
@@ -173,11 +181,14 @@ export function Create() {
               }}
               disabled={!type}
             />
-            <p className="text-xs text-muted-foreground">Used for the public claim link: /claim/{slug || "your-slug"}</p>
+            <p className="text-xs text-muted-foreground">
+              Public claim link · <span className="font-mono">/claim/{slug || "your-slug"}</span>
+            </p>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="token">Confidential token address</Label>
-            <Input id="token" placeholder="0x…" value={token} onChange={(e) => setToken(e.target.value.trim())} disabled={!type} />
+            <Label htmlFor="token">Confidential token</Label>
+            <Input id="token" placeholder="0x… (ERC-7984 address)" value={token} onChange={(e) => setToken(e.target.value.trim())} disabled={!type} />
             {token && !validToken && <p className="text-sm text-destructive">Invalid address.</p>}
             {validToken && confCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
             {validToken && confCheck.data === false && (
@@ -185,50 +196,55 @@ export function Create() {
                 Not a confidential ERC-7984 token. Use a confidential token address (e.g. cUSDT 0x4E7B…4491).
               </p>
             )}
-            {validToken && confCheck.error && (
-              <p className="text-sm text-destructive">Couldn't verify token: {confCheck.error.message}</p>
-            )}
+            {validToken && confCheck.error && <p className="text-sm text-destructive">Couldn't verify token: {confCheck.error.message}</p>}
             {validToken && isConfidential && tokenMeta.symbol && (
               <p className="text-xs text-muted-foreground">
                 ✓ {tokenMeta.symbol}
                 {tokenMeta.name ? ` · ${tokenMeta.name}` : ""} · {tokenMeta.decimals} decimals
               </p>
             )}
+            <p className="text-xs text-muted-foreground">
+              Need one?{" "}
+              <a className="underline decoration-border underline-offset-2 hover:decoration-foreground" href="/wrap">
+                Wrap an ERC-20 first
+              </a>
+              .
+            </p>
           </div>
 
           {type === "airdrop" && (
-            <div className="space-y-4">
+            <div className="space-y-4 border-t border-border pt-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="start">Claim opens</Label>
-                  <Input id="start" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Blank = opens the moment it's deployed.</p>
+                  <DateTimePicker id="start" value={start} onChange={setStart} placeholder="Opens at deploy" />
+                  <p className="text-xs text-muted-foreground">Leave empty = opens the moment it's deployed.</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="end">Claim closes</Label>
-                  <Input id="end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                  <DateTimePicker id="end" value={end} onChange={setEnd} placeholder="Pick close time" />
                   {end && !validWindow && (
                     <p className="text-sm text-destructive">Must be in the future{start ? " and after the open time" : ""}.</p>
                   )}
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={canExtend} onChange={(e) => setCanExtend(e.target.checked)} />
+              <label className="flex items-center gap-2.5 text-sm text-foreground">
+                <input type="checkbox" className="size-4 accent-seal" checked={canExtend} onChange={(e) => setCanExtend(e.target.checked)} />
                 Allow extending the claim window later
               </label>
             </div>
           )}
 
           {type === "vesting" && (
-            <div className="space-y-4">
+            <div className="space-y-4 border-t border-border pt-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="vstart">Vesting starts</Label>
-                  <Input id="vstart" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+                  <DateTimePicker id="vstart" value={start} onChange={setStart} placeholder="Pick start" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vend">Vesting ends</Label>
-                  <Input id="vend" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+                  <DateTimePicker id="vend" value={end} onChange={setEnd} placeholder="Pick end" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cliff">Cliff (days)</Label>
@@ -242,8 +258,8 @@ export function Create() {
                   <Label htmlFor="initial">Initial unlock (%)</Label>
                   <Input id="initial" inputMode="decimal" value={initialUnlockPct} onChange={(e) => setInitialUnlockPct(e.target.value)} />
                 </div>
-                <label className="flex items-end gap-2 pb-2 text-sm">
-                  <input type="checkbox" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
+                <label className="flex items-end gap-2.5 pb-2 text-sm text-foreground">
+                  <input type="checkbox" className="size-4 accent-seal" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
                   Revocable by admin
                 </label>
               </div>
@@ -259,19 +275,21 @@ export function Create() {
           )}
 
           {type === "disperse" && (
-            <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-              Disperse sends tokens directly to recipients in one batch — no claim step, no schedule. You'll add
-              recipients &amp; amounts after creating.
-            </p>
+            <Notice tone="muted">
+              Disperse sends tokens directly to recipients in one batch — no claim step, no schedule. You'll add recipients
+              &amp; amounts after creating.
+            </Notice>
           )}
 
-          <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>
-            {create.isPending ? "Creating draft…" : "Create draft"}
-          </Button>
-          {!isConnected && <p className="text-sm text-muted-foreground">Connect your wallet to create a distribution.</p>}
+          <div className="flex items-center gap-4 border-t border-border pt-5">
+            <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>
+              {create.isPending ? "Creating draft…" : "Create draft"}
+            </Button>
+            {!isConnected && <span className="text-sm text-muted-foreground">Connect your wallet to create a distribution.</span>}
+          </div>
           {create.error && <p className="text-sm text-destructive">{err(create.error)}</p>}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

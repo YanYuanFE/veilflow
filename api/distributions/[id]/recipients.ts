@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { and, desc, eq } from "drizzle-orm"
 import { db } from "../../_db"
 import { distributions, recipients } from "../../_schema"
-import { bad, HttpError, methodNotAllowed, normalizeAddress } from "../../_http"
+import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress } from "../../_http"
 
 const HEX_RE = /^0x[0-9a-fA-F]+$/
 
@@ -15,6 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return methodNotAllowed(res, ["GET", "POST"])
   } catch (e) {
     if (e instanceof HttpError) return bad(res, e.message, e.status)
+    if (isUniqueViolation(e)) return bad(res, "Recipient already has an artifact for this distribution", 409)
     throw e
   }
 }

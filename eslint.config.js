@@ -19,4 +19,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Vendored shadcn/ui primitives intentionally co-export variant helpers
+    // (e.g. buttonVariants = cva(...)) alongside the component — the fast-refresh
+    // DX rule doesn't apply to these.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

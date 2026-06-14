@@ -1,13 +1,34 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+/* Type system — Confidential Instrument
+   display: Libre Caslon Display (prospectus voice) · serif body: Libre Caslon Text
+   ui/data: Schibsted Grotesk (editorial grotesque) · ciphertext: Fragment Mono */
+@import "@fontsource/libre-caslon-display/400.css";
+@import "@fontsource/libre-caslon-text/400.css";
+@import "@fontsource/libre-caslon-text/400-italic.css";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/fragment-mono/400.css";
+/* Geist — the landing/console UI face */
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --font-sans: 'Schibsted Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Libre Caslon Display', 'Libre Caslon Text', Georgia, serif;
+    --font-serif: 'Libre Caslon Text', Georgia, 'Times New Roman', serif;
+    --font-mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+
+    --ease-veil: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --color-seal: var(--seal);
+    --color-seal-foreground: var(--seal-foreground);
+    --color-seal-soft: var(--seal-soft);
+
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,83 +69,226 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Light only — institutional daytime reading. Warm ivory paper, warm ink, Zama-gold seal.
+   Neutrals tinted toward the brand hue (~92–95) for subconscious cohesion. */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    color-scheme: light;
+    --radius: 0.1875rem;
+
+    --background: oklch(0.984 0.006 95);     /* ivory paper */
+    --foreground: oklch(0.235 0.014 72);     /* warm ink */
+    --card: oklch(0.998 0.0025 95);          /* near-white, lifts off the paper */
+    --card-foreground: oklch(0.235 0.014 72);
+    --popover: oklch(0.998 0.0025 95);
+    --popover-foreground: oklch(0.235 0.014 72);
+
+    --primary: oklch(0.235 0.014 72);        /* ink — black buttons */
+    --primary-foreground: oklch(0.985 0.006 95);
+    --secondary: oklch(0.949 0.009 92);
+    --secondary-foreground: oklch(0.285 0.016 74);
+    --muted: oklch(0.949 0.009 92);
+    --muted-foreground: oklch(0.505 0.015 76);
+    --accent: oklch(0.945 0.011 92);         /* neutral hover surface (NOT the brand gold) */
+    --accent-foreground: oklch(0.285 0.016 74);
+
+    /* The seal — Zama gold. Used like a highlighter / wax seal, sparingly. */
+    --seal: oklch(0.862 0.158 95);
+    --seal-foreground: oklch(0.255 0.02 78);
+    --seal-soft: oklch(0.945 0.072 96);
+
+    --destructive: oklch(0.505 0.158 26);    /* deep oxblood, not fire-engine red */
+
+    --border: oklch(0.872 0.013 88);         /* hairline rule */
+    --input: oklch(0.83 0.014 86);
+    --ring: oklch(0.47 0.03 80);
+
+    --chart-1: oklch(0.862 0.158 95);
+    --chart-2: oklch(0.235 0.014 72);
+    --chart-3: oklch(0.505 0.015 76);
+    --chart-4: oklch(0.66 0.02 80);
+    --chart-5: oklch(0.8 0.016 86);
+
+    --sidebar: oklch(0.984 0.006 95);
+    --sidebar-foreground: oklch(0.235 0.014 72);
+    --sidebar-primary: oklch(0.235 0.014 72);
+    --sidebar-primary-foreground: oklch(0.985 0.006 95);
+    --sidebar-accent: oklch(0.945 0.011 92);
+    --sidebar-accent-foreground: oklch(0.285 0.016 74);
+    --sidebar-border: oklch(0.872 0.013 88);
+    --sidebar-ring: oklch(0.47 0.03 80);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    color-scheme: dark;
+    --background: oklch(0.2 0.012 80);
+    --foreground: oklch(0.95 0.008 92);
+    --card: oklch(0.235 0.013 80);
+    --card-foreground: oklch(0.95 0.008 92);
+    --popover: oklch(0.235 0.013 80);
+    --popover-foreground: oklch(0.95 0.008 92);
+    --primary: oklch(0.95 0.008 92);
+    --primary-foreground: oklch(0.235 0.014 72);
+    --secondary: oklch(0.3 0.012 80);
+    --secondary-foreground: oklch(0.95 0.008 92);
+    --muted: oklch(0.3 0.012 80);
+    --muted-foreground: oklch(0.72 0.012 84);
+    --accent: oklch(0.31 0.013 80);
+    --accent-foreground: oklch(0.95 0.008 92);
+    --seal: oklch(0.84 0.16 95);
+    --seal-foreground: oklch(0.22 0.02 78);
+    --seal-soft: oklch(0.36 0.06 92);
+    --destructive: oklch(0.62 0.17 26);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 18%);
+    --ring: oklch(0.7 0.03 86);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+    * {
+        @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
+    html {
+        @apply font-sans;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
     }
-  html {
-    @apply font-sans;
+    body {
+        @apply bg-background text-foreground;
+        font-size: 0.9375rem;
+        line-height: 1.55;
     }
+    /* Highlighter selection — the seal as a marking pen */
+    ::selection {
+        background: var(--seal);
+        color: var(--seal-foreground);
+    }
+    /* Tighten the high-contrast display serif at large sizes */
+    .font-display {
+        letter-spacing: -0.012em;
+        font-feature-settings: "liga", "dlig";
+    }
+}
+
+/* The censor bar — solid ink with a faint redaction-tape hatch */
+.veil-bar {
+    background-color: var(--foreground);
+    background-image: repeating-linear-gradient(
+        45deg,
+        color-mix(in oklch, var(--foreground), white 9%) 0 1px,
+        transparent 1px 5px
+    );
+    box-shadow: inset 0 1px 0 0 color-mix(in oklch, var(--foreground), white 16%);
+    will-change: clip-path;
+}
+
+/* The veil lift — un-redacting a confidential figure (clip-path wipe, GPU-friendly) */
+@keyframes veil-lift {
+    from {
+        clip-path: inset(0 0 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 100%);
+    }
+}
+/* Orchestrated reveals — staggered entrance + on-scroll, opacity/transform only */
+@keyframes reveal-up {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+.reveal {
+    opacity: 0;
+}
+.reveal.is-in {
+    animation: reveal-up 0.75s var(--ease-veil) both;
+}
+
+/* Highlighter mark — Zama-gold marker swipe behind solid ink text */
+.mark-seal {
+    background-image: linear-gradient(to top, transparent 8%, var(--seal) 8%, var(--seal) 64%, transparent 64%);
+    background-repeat: no-repeat;
+    background-position: left center;
+    background-size: 100% 100%;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding-inline: 0.08em;
+}
+/* The mark drawing itself, like a pen stroke */
+.mark-draw {
+    background-size: 0% 100%;
+    animation: mark-draw 0.85s var(--ease-veil) both;
+}
+@keyframes mark-draw {
+    to {
+        background-size: 100% 100%;
+    }
+}
+
+/* Soft gold atmosphere behind hero focal points */
+.veil-glow {
+    background: radial-gradient(closest-side, color-mix(in oklch, var(--seal) 55%, transparent), transparent 72%);
+    filter: blur(44px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-delay: 0ms !important;
+        transition-duration: 0.001ms !important;
+    }
+    .reveal {
+        opacity: 1;
+    }
+    .mark-draw {
+        background-size: 100% 100%;
+    }
+}
+
+/* Console shell — a faint security dot-grid behind the app, the same paper
+   atmosphere as the claim page (sits above the base background, below content). */
+.console-shell {
+    isolation: isolate;
+}
+.console-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(color-mix(in oklch, var(--foreground) 4%, transparent) 1px, transparent 1.4px);
+    background-size: 26px 26px;
+}
+
+/* Orchestrated page entrance — replays per route. */
+@keyframes page-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+.page-enter {
+    animation: page-enter 0.45s var(--ease-veil) both;
+}
+
+/* Geist typography (matching the landing), applied to a subtree by adding the
+   `geist-type` class to its root — used by the app console and the claim page. */
+.geist-type,
+.geist-type .font-sans,
+.geist-type .font-display,
+.geist-type .font-serif {
+    font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+}
+.geist-type .font-mono {
+    font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
 }

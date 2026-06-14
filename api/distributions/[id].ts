@@ -51,6 +51,10 @@ async function patch(id: string, req: VercelRequest, res: VercelResponse) {
     if (typeof b.config !== "object" || b.config === null) throw new HttpError(400, "config must be an object")
     update.config = b.config as Record<string, unknown>
   }
+  if (b.theme !== undefined) {
+    if (b.theme !== null && typeof b.theme !== "object") throw new HttpError(400, "theme must be an object or null")
+    update.theme = b.theme as Record<string, unknown> | null
+  }
 
   const [row] = await db.update(distributions).set(update).where(eq(distributions.id, id)).returning()
   if (!row) return bad(res, "Not found", 404)

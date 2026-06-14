@@ -1,0 +1,8 @@
+<svg width="232" height="64" viewBox="0 0 232 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(8,16)">
+    <rect width="32" height="32" rx="8" fill="#26211c"/>
+    <rect x="6.5" y="9" width="9" height="2.5" rx="1.25" fill="#fbf9f2" opacity="0.5"/>
+    <rect x="6.5" y="17" width="14.5" height="3.3" rx="1.65" fill="#e8b923"/>
+  </g>
+  <text x="54" y="43" font-family="Georgia, 'Times New Roman', serif" font-size="33" letter-spacing="-0.6" fill="#26211c">Veilflow</text>
+</svg>

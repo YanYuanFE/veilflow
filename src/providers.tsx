@@ -3,7 +3,7 @@ import { useMemo } from "react"
 import { WagmiProvider, usePublicClient, useWalletClient, useAccount } from "wagmi"
 import { sepolia } from "wagmi/chains"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { RainbowKitProvider } from "@rainbow-me/rainbowkit"
+import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit"
 import { ZamaProvider, RelayerWeb, SepoliaConfig, indexedDBStorage } from "@zama-fhe/react-sdk"
 import { ViemSigner } from "@zama-fhe/sdk/viem"
 import { wagmiConfig } from "@/lib/wagmi"
@@ -11,6 +11,15 @@ import { SEPOLIA_RPC_URL } from "@/lib/config"
 import "@rainbow-me/rainbowkit/styles.css"
 
 const queryClient = new QueryClient()
+
+// Match the wallet UI to the house style — Zama-gold seal accent, document-sharp corners.
+const rainbowTheme = lightTheme({
+  accentColor: "oklch(0.862 0.158 95)",
+  accentColorForeground: "oklch(0.255 0.02 78)",
+  borderRadius: "small",
+  fontStack: "system",
+  overlayBlur: "small",
+})
 
 // Browser relayer (encryptor) — single-chain Sepolia. Network config from SepoliaConfig.
 const relayer = new RelayerWeb({
@@ -45,7 +54,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
+        <RainbowKitProvider theme={rainbowTheme}>
           <ZamaBoundary>{children}</ZamaBoundary>
         </RainbowKitProvider>
       </QueryClientProvider>

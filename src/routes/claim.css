@@ -1,0 +1,112 @@
+/* Claim page — "sealed confidential instrument" polish.
+   All rules scoped under .claim-page; everything derives from the live theme
+   tokens (--seal accent, --foreground, --background) so per-distribution
+   skinning and light/dark keep working. */
+
+.claim-page {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Atmosphere: a faint security dot-grid, plus a soft accent halo up top.
+   Both sit above the base background but behind all content. */
+.claim-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: radial-gradient(color-mix(in oklch, var(--foreground) 5%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+.claim-page::after {
+  content: "";
+  position: fixed;
+  top: -8%;
+  left: 50%;
+  width: min(760px, 94vw);
+  height: 400px;
+  transform: translateX(-50%);
+  z-index: -1;
+  background: radial-gradient(ellipse at center, color-mix(in oklch, var(--seal) 28%, transparent), transparent 70%);
+  filter: blur(66px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* The statement card — lifted off the paper with a soft, directional shadow. */
+.claim-card {
+  box-shadow:
+    0 1px 0 0 color-mix(in oklch, var(--foreground) 5%, transparent),
+    0 28px 64px -34px color-mix(in oklch, var(--foreground) 40%, transparent);
+}
+
+/* Orchestrated entrance — opacity/transform only. */
+@keyframes claim-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.claim-reveal {
+  animation: claim-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A slow sheen sweeping the sealed figure — reads as "encrypted, live".
+   It is clipped away together with the bar the moment the holder decrypts. */
+.claim-figure .veil-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in oklch, white 26%, transparent) 50%,
+    transparent 62%
+  );
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  animation: claim-sheen 2.9s ease-in-out infinite;
+}
+@keyframes claim-sheen {
+  0% {
+    background-position: 185% 0;
+  }
+  100% {
+    background-position: -85% 0;
+  }
+}
+
+/* Printed-statement leader dots between a label and its value. */
+.claim-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+}
+.claim-detail > dt {
+  flex: none;
+}
+.claim-detail > .leader {
+  flex: 1 1 auto;
+  min-width: 1.5rem;
+  border-bottom: 1px dotted color-mix(in oklch, var(--foreground) 24%, transparent);
+  transform: translateY(-0.3em);
+}
+.claim-detail > dd {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claim-reveal {
+    animation: none;
+    opacity: 1;
+  }
+  .claim-figure .veil-bar::after {
+    animation: none;
+  }
+}

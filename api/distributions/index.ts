@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
-import { and, desc, eq } from "drizzle-orm"
+import { desc, eq, inArray } from "drizzle-orm"
 import { db } from "../_db"
-import { distributions, distributionType } from "../_schema"
-import { bad, HttpError, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
+import { distributions, distributionType, recipients } from "../_schema"
+import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
+import { validateConfig } from "../_config"
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/
 const TYPES = distributionType.enumValues
@@ -19,16 +20,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// GET /api/distributions?creator=0x..  -> issuer's distributions (dashboard)
-// GET /api/distributions?slug=my-drop  -> single distribution (public claim page)
+// GET /api/distributions?creator=0x..   -> issuer's distributions (dashboard)
+// GET /api/distributions?slug=my-drop    -> single distribution (public claim page)
+// GET /api/distributions?recipient=0x..  -> distributions where this address has a claim
 async function list(req: VercelRequest, res: VercelResponse) {
-  const { creator, slug } = req.query
+  const { creator, slug, recipient } = req.query
   if (typeof slug === "string") {
     const [row] = await db.select().from(distributions).where(eq(distributions.slug, slug)).limit(1)
     if (!row) return bad(res, "Not found", 404)
     return res.status(200).json(row)
   }
-  if (typeof creator !== "string") return bad(res, "creator or slug query param required")
+  if (typeof recipient === "string") {
+    const addr = normalizeAddress(recipient, "recipient")
+    const links = await db
+      .select({ id: recipients.distributionId })
+      .from(recipients)
+      .where(eq(recipients.recipient, addr))
+    const ids = [...new Set(links.map((l) => l.id))]
+    if (ids.length === 0) return res.status(200).json([])
+    const rows = await db
+      .select()
+      .from(distributions)
+      .where(inArray(distributions.id, ids))
+      .orderBy(desc(distributions.createdAt))
+    return res.status(200).json(rows)
+  }
+  if (typeof creator !== "string") return bad(res, "creator, slug or recipient query param required")
   const rows = await db
     .select()
     .from(distributions)
@@ -53,18 +70,11 @@ async function create(req: VercelRequest, res: VercelResponse) {
   const creator = normalizeAddress(b.creator, "creator")
   const token = requireAddress(b.token, "token") // checksummed; chain expects checksum
   const chainId = typeof b.chainId === "number" ? b.chainId : 11_155_111
-  const config = b.config && typeof b.config === "object" ? (b.config as Record<string, unknown>) : {}
+  const config = validateConfig(b.type as string, b.config)
 
   const [row] = await db
     .insert(distributions)
     .values({ name, slug, type: b.type as (typeof TYPES)[number], creator, token, chainId, config })
     .returning()
   return res.status(201).json(row)
-}
-
-function isUniqueViolation(e: unknown): boolean {
-  if (typeof e !== "object" || e === null) return false
-  const code = (e as { code?: unknown }).code
-  const msg = (e as { message?: unknown }).message
-  return code === "23505" || (typeof msg === "string" && msg.includes("duplicate key"))
 }

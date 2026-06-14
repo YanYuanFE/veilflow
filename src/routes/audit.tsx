@@ -2,8 +2,10 @@ import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { formatUnits, isAddress, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
+import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { Lock } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
   useManagerToken,
@@ -16,13 +18,15 @@ import { DisclosureType } from "@tokenops/sdk/fhe-vesting"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Redaction } from "@/components/ui/redaction"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Kicker } from "@/components/editorial"
 import { useTokenMeta } from "@/lib/tokens"
+import { listDisclosuresFor } from "@/lib/api"
+import { shortAddr } from "@/lib/format"
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address
 const VID_RE = /^0x[0-9a-fA-F]{64}$/
-const SELECT_CLS =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 const TYPES = [
   { value: DisclosureType.TotalAllocation, label: "Total allocation" },
@@ -37,7 +41,12 @@ function err(e: unknown): string {
 
 export function Audit() {
   const [sp] = useSearchParams()
-  const { isConnected } = useAccount()
+  const { address, isConnected } = useAccount()
+  const mine = useQuery({
+    queryKey: ["disclosures", address],
+    queryFn: () => listDisclosuresFor(address!),
+    enabled: isConnected && !!address,
+  })
 
   const [manager, setManager] = useState(sp.get("manager") ?? "")
   const [vestingId, setVestingId] = useState(sp.get("vesting") ?? "")
@@ -69,6 +78,9 @@ export function Audit() {
     { enabled: !!viewHandle && validManager },
   )
   const revealed = viewHandle ? decrypt.data?.[viewHandle] : undefined
+  const revealedText =
+    typeof revealed === "bigint" ? `${formatUnits(revealed, decimals)}${meta.symbol ? ` ${meta.symbol}` : ""}` : undefined
+  const revealing = getter.isPending || (!!viewHandle && revealed === undefined && !decrypt.error)
   const typeLabel = TYPES.find((t) => t.value === dtype)?.label ?? ""
 
   const onReveal = async () => {
@@ -93,31 +105,67 @@ export function Audit() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Auditor view</h1>
-        <p className="text-muted-foreground">
-          View an encrypted vesting figure you were granted read access to. Connect the auditor wallet the issuer
-          disclosed to — no one else can decrypt it.
+    <div className="mx-auto max-w-xl space-y-8">
+      <header className="space-y-2">
+        <Kicker>Compliance · Auditor view</Kicker>
+        <h1 className="font-display text-[clamp(2rem,4.5vw,2.85rem)] leading-tight text-foreground">Auditor view</h1>
+        <p className="font-serif text-[1.0625rem] leading-relaxed text-muted-foreground">
+          Read one encrypted vesting figure you were granted access to. Connect the wallet the issuer disclosed to — no
+          one else can lift the veil.
         </p>
-      </div>
+      </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Disclosed figure</CardTitle>
-          <CardDescription>Enter the manager &amp; vesting id the issuer shared with you.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {isConnected && mine.data && mine.data.length > 0 && (
+        <div className="rounded-md border border-border bg-card">
+          <div className="border-b border-border px-5 py-3">
+            <Kicker>Disclosed to you</Kicker>
+          </div>
+          <ul className="divide-y divide-border">
+            {mine.data.map((row) => (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManager(row.manager)
+                    setVestingId(row.vestingId)
+                    setDtype(row.disclosureType as DisclosureType)
+                    setViewHandle(undefined)
+                  }}
+                  className="group flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/30"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm text-foreground">
+                      {TYPES.find((t) => t.value === row.disclosureType)?.label ?? "Figure"}
+                    </div>
+                    <Kicker className="mt-0.5 tracking-[0.1em]">
+                      {row.recipient ? `${shortAddr(row.recipient)} · ` : ""}mgr {shortAddr(row.manager)}
+                    </Kicker>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground group-hover:text-foreground">Load →</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="rounded-md border border-border bg-card">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+          <Kicker>Disclosed figure</Kicker>
+          {validManager && meta.symbol && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Lock className="size-3" aria-hidden />
+              {meta.symbol}
+              {meta.name ? ` · ${meta.name}` : ""}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
           <div className="space-y-2">
-            <Label htmlFor="mgr">Vesting manager address</Label>
+            <Label htmlFor="mgr">Vesting manager</Label>
             <Input id="mgr" placeholder="0x…" value={manager} onChange={(e) => setManager(e.target.value.trim())} />
             {manager && !validManager && <p className="text-sm text-destructive">Invalid address.</p>}
-            {validManager && meta.symbol && (
-              <p className="text-xs text-muted-foreground">
-                Token: 🔒 {meta.symbol}
-                {meta.name ? ` · ${meta.name}` : ""}
-              </p>
-            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="vid">Vesting id</Label>
@@ -126,14 +174,28 @@ export function Audit() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="dt">Disclosed figure</Label>
-            <select id="dt" className={SELECT_CLS} value={dtype} onChange={(e) => setDtype(Number(e.target.value) as DisclosureType)}>
-              {TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+            <Select value={String(dtype)} onValueChange={(v) => setDtype(Number(v) as DisclosureType)}>
+              <SelectTrigger id="dt" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPES.map((t) => (
+                  <SelectItem key={t.value} value={String(t.value)}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          {validManager && validVid && (
+            <div className="flex items-baseline justify-between gap-4 rounded-sm border border-border bg-muted/20 px-4 py-3">
+              <Kicker className="tracking-[0.12em]">{typeLabel}</Kicker>
+              <Redaction revealed={!!revealedText} loading={revealing} chars={13} align="end" className="font-mono text-lg text-foreground">
+                {revealedText}
+              </Redaction>
+            </div>
+          )}
 
           {!isConnected ? (
             <div className="space-y-2">
@@ -141,23 +203,15 @@ export function Audit() {
               <ConnectButton />
             </div>
           ) : (
-            <Button onClick={onReveal} disabled={!validManager || !validVid || getter.isPending}>
-              {getter.isPending ? "Granting access…" : `Reveal ${typeLabel.toLowerCase()}`}
+            <Button onClick={onReveal} disabled={!validManager || !validVid || revealing}>
+              {revealing ? "Lifting the veil…" : `Reveal ${typeLabel.toLowerCase()}`}
             </Button>
           )}
 
-          {typeof revealed === "bigint" && (
-            <div className="rounded-md border p-3 text-sm">
-              <span className="text-muted-foreground">{typeLabel}: </span>
-              <span className="font-mono">
-                {formatUnits(revealed, decimals)} {meta.symbol ?? ""}
-              </span>
-            </div>
-          )}
           {getter.error && <p className="text-sm text-destructive">{err(getter.error)}</p>}
           {decrypt.error && <p className="text-sm text-destructive">{err(decrypt.error)}</p>}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

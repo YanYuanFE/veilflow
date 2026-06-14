@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, integer, jsonb, timestamp } from "drizzle-orm/pg-core"
+import { pgTable, pgEnum, uuid, text, integer, jsonb, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core"
 
 // One row per distribution project. The chain is the source of truth for money;
 // this table is the convenience/CMS layer. Privacy red line: NO plaintext amounts
@@ -30,7 +30,9 @@ export const distributions = pgTable("distributions", {
   theme: jsonb("theme").$type<Record<string, unknown> | null>(), // branding (later)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  index("distributions_creator_idx").on(t.creator), // dashboard: list by issuer
+])
 
 // Ciphertext artifacts handed to recipients. The backend's job is to deliver
 // {handle, inputProof, signature} to the right address — it cannot forge a claim
@@ -45,7 +47,25 @@ export const recipients = pgTable("recipients", {
   inputProof: text("input_proof").notNull(), // KMS input proof
   signature: text("signature"), // EIP-712 claim authorization (airdrop)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-})
+}, (t) => [
+  uniqueIndex("recipients_distribution_recipient_uniq").on(t.distributionId, t.recipient), // one artifact per (distribution, recipient)
+  index("recipients_recipient_idx").on(t.recipient), // /distributions?recipient= reverse-lookup
+])
+
+// Selective-disclosure grants, recorded so an auditor can reverse-look-up what was
+// disclosed TO them (the SDK/chain has no "disclosed-to-party" read). Public refs only.
+export const disclosures = pgTable("disclosures", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  distributionId: uuid("distribution_id").references(() => distributions.id, { onDelete: "cascade" }),
+  manager: text("manager").notNull(), // vesting manager address
+  vestingId: text("vesting_id").notNull(), // bytes32 hex
+  party: text("party").notNull(), // lowercased auditor address (reverse-lookup key)
+  disclosureType: integer("disclosure_type").notNull(), // DisclosureType enum value
+  recipient: text("recipient"), // lowercased recipient address (display only)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("disclosures_party_idx").on(t.party), // auditor reverse-lookup by party
+])
 
 export type Distribution = typeof distributions.$inferSelect
 export type NewDistribution = typeof distributions.$inferInsert

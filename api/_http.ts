@@ -31,3 +31,11 @@ export class HttpError extends Error {
     super(message)
   }
 }
+
+// Postgres unique-constraint violation — callers map this to a 409.
+export function isUniqueViolation(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false
+  const code = (e as { code?: unknown }).code
+  const msg = (e as { message?: unknown }).message
+  return code === "23505" || (typeof msg === "string" && msg.includes("duplicate key"))
+}

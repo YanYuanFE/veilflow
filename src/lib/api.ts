@@ -38,6 +38,17 @@ export interface RecipientArtifact {
   createdAt: string
 }
 
+export interface DisclosureRecord {
+  id: string
+  distributionId: string | null
+  manager: string
+  vestingId: string
+  party: string
+  disclosureType: number
+  recipient: string | null
+  createdAt: string
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -57,6 +68,11 @@ export function listDistributions(creator: Address) {
 
 export function getDistribution(id: string) {
   return request<Distribution>(`/distributions/${id}`)
+}
+
+// Distributions where this wallet has been allocated a claim (airdrop artifacts).
+export function listClaimsFor(recipient: Address) {
+  return request<Distribution[]>(`/distributions?recipient=${recipient}`)
 }
 
 export function getDistributionBySlug(slug: string) {
@@ -81,6 +97,7 @@ export function patchDistribution(
     contractAddress?: Address
     deployTxHash?: Hex
     config?: Record<string, unknown>
+    theme?: Record<string, unknown> | null
   },
 ) {
   return request<Distribution>(`/distributions/${id}`, { method: "PATCH", body: JSON.stringify(patch) })
@@ -99,4 +116,20 @@ export function addRecipient(
     method: "POST",
     body: JSON.stringify(input),
   })
+}
+
+// Figures disclosed TO this auditor wallet (reverse-lookup; no on-chain read exists).
+export function listDisclosuresFor(party: Address) {
+  return request<DisclosureRecord[]>(`/disclosures?party=${party}`)
+}
+
+export function recordDisclosure(input: {
+  distributionId?: string
+  manager: Address
+  vestingId: Hex
+  party: Address
+  disclosureType: number
+  recipient?: Address
+}) {
+  return request<DisclosureRecord>("/disclosures", { method: "POST", body: JSON.stringify(input) })
 }

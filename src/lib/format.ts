@@ -14,5 +14,5 @@ export function shortAddr(addr?: string | null): string {
 
 export function fmtTime(ts?: number | null): string {
   if (ts == null) return "—"
-  return new Date(ts * 1000).toLocaleString()
+  return new Date(ts * 1000).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
 }

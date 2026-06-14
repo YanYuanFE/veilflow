@@ -1,0 +1,559 @@
+/* Faithful reproduction of the Variant-designed VeilFlow landing.
+   All rules are scoped under `.vl` so the global resets/elements (body, section,
+   footer) don't leak into the rest of the app.
+   Geist/Geist Mono @font-face are loaded globally in index.css. */
+
+.vl {
+  --vl-bg: #f5f5f5;
+  --vl-fg: #0a0a0a;
+  --vl-muted: #666666;
+  --vl-border: rgba(0, 0, 0, 0.08);
+  --vl-glass: rgba(0, 0, 0, 0.03);
+  --vl-gold: #ffd208;
+  --vl-font-main: "Geist Variable", sans-serif;
+  --vl-font-mono: "Geist Mono Variable", monospace;
+
+  /* Map the shared Logomark's tokens onto this page's palette */
+  --seal: var(--vl-gold);
+  --background: var(--vl-bg);
+
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--vl-bg);
+  color: var(--vl-fg);
+  font-family: var(--vl-font-main);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.vl *,
+.vl *::before,
+.vl *::after {
+  box-sizing: border-box;
+}
+
+.vl-bg-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Nav */
+.vl-nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  padding: 24px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+  background: linear-gradient(to bottom, rgba(245, 245, 245, 0.8), transparent);
+  backdrop-filter: blur(10px);
+}
+
+.vl-logo {
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.05em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--vl-fg);
+  text-decoration: none;
+}
+
+.vl-logo-mark {
+  width: 26px;
+  height: 26px;
+  color: var(--vl-fg);
+}
+
+.vl-nav-links {
+  display: flex;
+  gap: 32px;
+  font-size: 0.85rem;
+  color: var(--vl-muted);
+}
+.vl-nav-links a {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.3s;
+}
+.vl-nav-links a:hover {
+  color: var(--vl-fg);
+}
+
+.vl-btn-wallet {
+  background: var(--vl-glass);
+  border: 1px solid var(--vl-border);
+  padding: 8px 16px;
+  border-radius: 100px;
+  color: var(--vl-fg);
+  font-family: var(--vl-font-mono);
+  font-size: 0.75rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: 0.3s;
+}
+.vl-btn-wallet:hover {
+  border-color: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Content sits above the canvas */
+.vl-main,
+.vl-footer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hero */
+.vl-hero {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 10vw;
+  position: relative;
+  z-index: 1;
+}
+
+.vl-metadata-tag {
+  font-family: var(--vl-font-mono);
+  font-size: 0.7rem;
+  color: var(--vl-muted);
+  margin-bottom: 24px;
+  letter-spacing: 0.2em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vl-metadata-tag .vl-dot-gold {
+  width: 6px;
+  height: 6px;
+  background: var(--vl-gold);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--vl-gold);
+}
+
+.vl-hero h1 {
+  font-size: clamp(2.5rem, 7vw, 5.5rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  max-width: 800px;
+  margin: 0 0 32px;
+}
+
+.vl-hero-sub {
+  color: var(--vl-muted);
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  max-width: 500px;
+  margin: 0 0 48px;
+}
+
+.vl-cta-group {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.vl-btn-primary {
+  background: #0a0a0a;
+  color: #ffffff;
+  padding: 18px 40px;
+  border-radius: 100px;
+  font-weight: 700;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.3s;
+}
+.vl-btn-primary:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.vl-btn-secondary {
+  color: var(--vl-fg);
+  text-decoration: none;
+  font-family: var(--vl-font-mono);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vl-play-icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--vl-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Floating badges */
+.vl-floating-badges {
+  position: absolute;
+  right: 10vw;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vl-badge {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--vl-border);
+  padding: 12px 20px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 280px;
+  opacity: 0;
+  transform: translateX(40px);
+  animation: vl-slide-in 1s forwards ease-out;
+}
+.vl-badge:nth-child(1) {
+  animation-delay: 0.2s;
+}
+.vl-badge:nth-child(2) {
+  animation-delay: 0.4s;
+}
+.vl-badge:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes vl-slide-in {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.vl-badge img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #eee;
+  object-fit: cover;
+}
+
+.vl-badge-info {
+  display: flex;
+  flex-direction: column;
+}
+.vl-badge-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.vl-badge-data {
+  font-family: var(--vl-font-mono);
+  font-size: 0.65rem;
+  color: var(--vl-muted);
+}
+.vl-badge-status {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  background: var(--vl-gold);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--vl-gold);
+}
+
+/* Scroll indicator */
+.vl-scroll-indicator {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--vl-font-mono);
+  font-size: 0.6rem;
+  color: var(--vl-muted);
+  letter-spacing: 0.2em;
+}
+.vl-scroll-line {
+  width: 1px;
+  height: 40px;
+  background: linear-gradient(to bottom, var(--vl-muted), transparent);
+}
+
+/* Sections */
+.vl-section {
+  padding: clamp(64px, 10vw, 120px) 6vw;
+  position: relative;
+  z-index: 1;
+}
+
+.vl-section-header {
+  margin-bottom: clamp(40px, 6vw, 80px);
+}
+.vl-section-header h2 {
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+  margin: 0 0 16px;
+}
+
+/* Features */
+.vl-grid-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 24px;
+}
+
+.vl-feature-card {
+  border: 1px solid var(--vl-border);
+  border-radius: clamp(16px, 2vw, 24px);
+  padding: clamp(24px, 3vw, 40px);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.03), transparent);
+  transition: 0.4s;
+  position: relative;
+  overflow: hidden;
+}
+.vl-feature-card:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.05), transparent);
+}
+.vl-feature-card h3 {
+  font-size: 1.4rem;
+  margin: 0 0 16px;
+}
+.vl-feature-card p {
+  color: var(--vl-muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+.vl-feature-card .vl-icon {
+  margin-bottom: 32px;
+  color: var(--vl-gold);
+}
+
+/* Console preview */
+.vl-console {
+  background: #ffffff;
+  border: 1px solid var(--vl-border);
+  border-radius: 12px;
+  width: 100%;
+  margin-top: 60px;
+  overflow: hidden;
+  box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.15);
+}
+.vl-console-header {
+  background: rgba(0, 0, 0, 0.03);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--vl-border);
+}
+.vl-console-file {
+  font-family: var(--vl-font-mono);
+  font-size: 0.65rem;
+  color: var(--vl-muted);
+  margin-left: 12px;
+}
+.vl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.vl-console-body {
+  padding: 24px;
+  font-family: var(--vl-font-mono);
+  font-size: 0.8rem;
+}
+.vl-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 1fr;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  transition: background 0.2s;
+  cursor: crosshair;
+}
+.vl-row.vl-row-head {
+  border-bottom: 2px solid var(--vl-border);
+  cursor: default;
+}
+.vl-row:not(.vl-row-head):hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+.vl-row:not(.vl-row-head):hover .vl-encrypted-val {
+  color: var(--vl-gold);
+}
+.vl-encrypted-val {
+  color: var(--vl-muted);
+  letter-spacing: 0.1em;
+  transition: color 0.3s;
+}
+.vl-status-shielded {
+  color: var(--vl-gold);
+}
+.vl-label {
+  color: var(--vl-muted);
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+.vl-console-note {
+  text-align: center;
+  margin-top: 32px;
+  color: var(--vl-muted);
+  font-size: 0.85rem;
+}
+
+/* Footer */
+.vl-footer {
+  padding: 80px 10vw;
+  border-top: 1px solid var(--vl-border);
+  display: flex;
+  justify-content: space-between;
+  color: var(--vl-muted);
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.vl-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+.vl-footer-links {
+  display: flex;
+  gap: 40px;
+}
+
+/* ============================================================
+   Responsive — tablet (≤1024px) and mobile (≤640px)
+   ============================================================ */
+
+/* Tablet — collapse the nav links, shrink the hero, stack the floating
+   badges under the hero copy instead of overlapping it. */
+@media (max-width: 1024px) {
+  .vl-nav {
+    padding: 18px 24px;
+  }
+  .vl-nav-links {
+    display: none;
+  }
+
+  .vl-hero {
+    padding: 0 24px;
+    height: auto;
+    min-height: 100svh;
+    padding-top: 120px;
+    padding-bottom: 80px;
+    justify-content: flex-start;
+  }
+
+  /* Badges sit below the copy on a row of their own, no longer floating. */
+  .vl-floating-badges {
+    position: static;
+    transform: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 48px;
+  }
+  .vl-badge {
+    width: auto;
+    flex: 1 1 260px;
+  }
+
+  .vl-section {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .vl-footer {
+    padding: 64px 24px;
+  }
+}
+
+/* Mobile — single-column layouts, compact spacing, simplified console. */
+@media (max-width: 640px) {
+  .vl-nav {
+    padding: 16px 20px;
+  }
+  .vl-btn-wallet {
+    padding: 6px 12px;
+    font-size: 0.7rem;
+  }
+
+  .vl-hero {
+    padding: 110px 20px 64px;
+    min-height: auto;
+  }
+  .vl-hero-sub {
+    margin-bottom: 32px;
+  }
+  /* Stack the two CTAs vertically so neither gets cramped. */
+  .vl-cta-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .vl-btn-primary {
+    justify-content: center;
+    padding: 16px 28px;
+  }
+  .vl-btn-secondary {
+    justify-content: center;
+  }
+
+  .vl-badge {
+    flex: 1 1 100%;
+  }
+
+  /* Console table — keep all four columns but tighten the grid so nothing
+     wraps ugly; the amounts/addresses are already truncated. */
+  .vl-console-body {
+    padding: 16px;
+    font-size: 0.7rem;
+  }
+  .vl-row {
+    grid-template-columns: 0.6fr 1.4fr 1.3fr 0.9fr;
+    gap: 8px;
+    padding: 12px 0;
+  }
+  .vl-label {
+    font-size: 0.55rem;
+  }
+
+  .vl-scroll-indicator {
+    display: none;
+  }
+
+  .vl-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 48px 20px;
+  }
+  .vl-footer-links {
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vl-badge {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

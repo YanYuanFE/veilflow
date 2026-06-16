@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Kicker, Notice } from "@/components/editorial"
 import { BalanceLine } from "@/components/balance-line"
 import { RecipientPreview } from "@/components/recipient-preview"
-import { parseEntries, readRecipientCsv } from "@/lib/recipients"
+import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
 import { patchDistribution, type Distribution } from "@/lib/api"
 import { DISPERSE_SINGLETON, EXPLORER, err, numberConfig } from "./shared"
 
@@ -191,8 +191,15 @@ export function DisperseCard({ d }: { d: Distribution }) {
       <CardHeader>
         <CardTitle>Disperse</CardTitle>
         <CardDescription>
-          One <span className="font-mono">address, amount</span> per line, or upload a CSV. Sends from your
-          confidential balance in a single encrypted batch — recipients receive instantly, no claim.
+          One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
+          <button
+            type="button"
+            onClick={downloadRecipientTemplate}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            download a template
+          </button>
+          . Sends from your confidential balance in a single encrypted batch — recipients receive instantly, no claim.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -221,7 +228,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
         />
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             type="button"
             disabled={!address}
@@ -240,7 +247,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
               e.target.value = ""
             }}
           />
-          <Button variant="ghost" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+          <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
             Upload CSV
           </Button>
           <span className="text-muted-foreground">

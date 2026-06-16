@@ -44,7 +44,9 @@ import { useNowSeconds } from "@/lib/use-now"
 import { patchDistribution, recordDisclosure, type Distribution } from "@/lib/api"
 import { err, randomSalt, numberConfig } from "./shared"
 import { GoLiveDialog } from "./go-live-dialog"
-import { VestingRolesCard, VestingTreasuryCard } from "./vesting-admin"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { VestingAdminViewsCard, VestingClaimerCard } from "./vesting-admin"
 
 export function VestingDeployCard({ d }: { d: Distribution }) {
   const queryClient = useQueryClient()
@@ -204,8 +206,15 @@ export function VestingManageCard({ d }: { d: Distribution }) {
             <div>
               <CardTitle>Add recipients</CardTitle>
               <CardDescription>
-                One <span className="font-mono">address, amount</span> per line, or upload a CSV. Each creates an
-                on-chain vesting funded from your confidential balance.
+                One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
+                <button
+                  type="button"
+                  onClick={downloadRecipientTemplate}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  download a template
+                </button>
+                . Each creates an on-chain vesting funded from your confidential balance.
               </CardDescription>
             </div>
             {d.status !== "live" && (
@@ -235,7 +244,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
           />
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               type="button"
               disabled={!address}
@@ -254,11 +263,8 @@ export function VestingManageCard({ d }: { d: Distribution }) {
                 e.target.value = ""
               }}
             />
-            <Button variant="ghost" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
               Upload CSV
-            </Button>
-            <Button variant="ghost" size="sm" type="button" onClick={downloadRecipientTemplate}>
-              CSV template
             </Button>
             <span className="text-muted-foreground">
               {fresh.length} to add
@@ -298,27 +304,18 @@ export function VestingManageCard({ d }: { d: Distribution }) {
           {recipientsQ.data?.map((r) => (
             <div key={r} className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm">
               <span className="font-mono">{shortAddr(r)}</span>
-              <span className="text-xs text-muted-foreground">🔒 vesting</span>
+              <RecipientManageSheet d={d} recipient={r as Address} />
             </div>
           ))}
         </CardContent>
       </Card>
-
-      <VestingAdminCard d={d} />
-
-      <VestingDisclosureCard d={d} />
-
-      <VestingRolesCard d={d} />
-
-      <VestingTreasuryCard d={d} />
     </div>
   )
 }
 
-function VestingAdminCard({ d }: { d: Distribution }) {
+// Inline pause/resume row — rendered inside the Overview card (no wrapper card of its own).
+export function VestingPauseRow({ d }: { d: Distribution }) {
   const manager = d.contractAddress as Address
-  const isRevocable = d.config.isRevocable === true
-
   const pausableQ = useManagerIsPausable({ address: manager })
   const pausedQ = useManagerPaused({ address: manager })
   const pause = usePause({ address: manager })
@@ -326,16 +323,6 @@ function VestingAdminCard({ d }: { d: Distribution }) {
   const isPaused = pausedQ.data === true
   const pausable = pausableQ.data === true
   const pausing = pause.isPending || unpause.isPending
-
-  const recipientsQ = useAllRecipients({ address: manager })
-  const [revokeRecipient, setRevokeRecipient] = useState("")
-  const revokeVestingsQ = useRecipientVestings({
-    address: manager,
-    recipient: isAddress(revokeRecipient) ? (revokeRecipient as Address) : undefined,
-  })
-  const revokeVestingIds = revokeVestingsQ.data ?? []
-  const maxRevokeQ = useManagerMaxRevokeBatchSize({ address: manager })
-  const batchRevoke = useBatchRevokeVesting({ address: manager })
 
   const onTogglePause = async () => {
     try {
@@ -348,16 +335,42 @@ function VestingAdminCard({ d }: { d: Distribution }) {
     }
   }
 
+  if (!pausable) return null
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+      <div>
+        <Kicker className="tracking-[0.12em]">Claims &amp; grants</Kicker>
+        <p className="mt-1 text-sm text-foreground">{pausedQ.isLoading ? "…" : isPaused ? "Paused" : "Open"}</p>
+      </div>
+      <Button
+        variant={isPaused ? "default" : "destructive"}
+        size="sm"
+        onClick={onTogglePause}
+        disabled={pausing || pausedQ.isLoading}
+      >
+        {pausing ? "…" : isPaused ? "Resume" : "Pause"}
+      </Button>
+    </div>
+  )
+}
+
+function VestingRevokeCard({ d, recipient }: { d: Distribution; recipient: Address }) {
+  const manager = d.contractAddress as Address
+  const isRevocable = d.config.isRevocable === true
+  const revokeVestingsQ = useRecipientVestings({ address: manager, recipient })
+  const revokeVestingIds = revokeVestingsQ.data ?? []
+  const maxRevokeQ = useManagerMaxRevokeBatchSize({ address: manager })
+  const batchRevoke = useBatchRevokeVesting({ address: manager })
+
   const onRevoke = async () => {
     if (revokeVestingIds.length === 0) return
     try {
-      // Revoke all of the selected recipient's vestings, chunked to the manager's cap.
+      // Revoke all of this recipient's vestings, chunked to the manager's cap.
       const max = maxRevokeQ.data && maxRevokeQ.data > 0n ? Number(maxRevokeQ.data) : 50
       for (let i = 0; i < revokeVestingIds.length; i += max) {
         await batchRevoke.mutateAsync({ vestingIds: revokeVestingIds.slice(i, i + max) })
       }
       await revokeVestingsQ.refetch()
-      setRevokeRecipient("")
       toast.success(`Revoked ${revokeVestingIds.length} vesting${revokeVestingIds.length === 1 ? "" : "s"}`)
     } catch (e) {
       toast.error(err(e))
@@ -367,85 +380,50 @@ function VestingAdminCard({ d }: { d: Distribution }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin controls</CardTitle>
-        <CardDescription>Operate the vesting manager — only a holder of its admin roles can run these.</CardDescription>
+        <CardTitle>Revoke vesting</CardTitle>
+        <CardDescription>
+          Ends this recipient's vesting on-chain. Requires the manager's revoker role. Irreversible.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Pause / resume — blocks claims & new grants while paused */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Kicker className="tracking-[0.12em]">Claims &amp; grants</Kicker>
-            <p className="mt-1 text-sm text-foreground">
-              {!pausable ? "Not pausable" : pausedQ.isLoading ? "…" : isPaused ? "Paused" : "Open"}
-            </p>
-          </div>
-          {pausable && (
-            <Button
-              variant={isPaused ? "default" : "outline"}
-              size="sm"
-              onClick={onTogglePause}
-              disabled={pausing || pausedQ.isLoading}
-            >
-              {pausing ? "…" : isPaused ? "Resume" : "Pause"}
-            </Button>
-          )}
-        </div>
-
-        {/* Revoke a recipient's vesting */}
-        <div className="space-y-2 border-t border-border pt-5">
-          <Kicker className="tracking-[0.12em]">Revoke a vesting</Kicker>
-          {!isRevocable ? (
-            <p className="text-xs text-muted-foreground">
-              Grants in this distribution were created non-revocable — they can't be revoked.
-            </p>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Ends a recipient's vesting on-chain. Requires the manager's revoker role.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="min-w-[14rem] flex-1">
-                  <Select value={revokeRecipient || undefined} onValueChange={setRevokeRecipient}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select recipient…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipientsQ.data?.map((r) => (
-                        <SelectItem key={r} value={r}>
-                          {shortAddr(r)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm" disabled={revokeVestingIds.length === 0 || batchRevoke.isPending}>
-                      {batchRevoke.isPending ? "Revoking…" : "Revoke…"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Revoke {revokeVestingIds.length === 1 ? "this vesting" : `${revokeVestingIds.length} vestings`}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Ends <span className="font-mono text-foreground">{shortAddr(revokeRecipient)}</span>'s{" "}
-                        {revokeVestingIds.length === 1 ? "vesting" : `${revokeVestingIds.length} vestings`} on-chain. This
-                        is an admin action and can't be undone from here.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={onRevoke}>Revoke</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-              {isAddress(revokeRecipient) && !revokeVestingsQ.isLoading && revokeVestingIds.length === 0 && (
-                <p className="text-xs text-muted-foreground">No vesting found for that recipient.</p>
-              )}
-            </>
-          )}
-        </div>
+      <CardContent>
+        {!isRevocable ? (
+          <p className="text-xs text-muted-foreground">
+            Grants in this distribution were created non-revocable — they can't be revoked.
+          </p>
+        ) : (
+          <>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={revokeVestingIds.length === 0 || batchRevoke.isPending}>
+                  {batchRevoke.isPending
+                    ? "Revoking…"
+                    : revokeVestingIds.length > 1
+                      ? `Revoke ${revokeVestingIds.length} vestings…`
+                      : "Revoke vesting…"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Revoke {revokeVestingIds.length === 1 ? "this vesting" : `${revokeVestingIds.length} vestings`}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Ends <span className="font-mono text-foreground">{shortAddr(recipient)}</span>'s{" "}
+                    {revokeVestingIds.length === 1 ? "vesting" : `${revokeVestingIds.length} vestings`} on-chain. This is an
+                    admin action and can't be undone from here.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onRevoke}>Revoke</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {!revokeVestingsQ.isLoading && revokeVestingIds.length === 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">No vesting found for this recipient.</p>
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   )
@@ -458,10 +436,11 @@ const DISCLOSURE_TYPES = [
   { value: DisclosureType.SettledAmount, label: "Settled (claimed) amount" },
 ]
 
-function VestingDisclosureCard({ d }: { d: Distribution }) {
+export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Distribution; recipient?: Address }) {
   const manager = d.contractAddress as Address
   const recipientsQ = useAllRecipients({ address: manager })
-  const [recipient, setRecipient] = useState("")
+  const [recipientState, setRecipient] = useState("")
+  const recipient = lockedRecipient ?? recipientState
   const [party, setParty] = useState("")
   const [dtype, setDtype] = useState<DisclosureType>(DisclosureType.TotalAllocation)
   const [busy, setBusy] = useState(false)
@@ -519,22 +498,24 @@ function VestingDisclosureCard({ d }: { d: Distribution }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="disc-recipient">Recipient</Label>
-            <Select value={recipient || undefined} onValueChange={setRecipient}>
-              <SelectTrigger id="disc-recipient" className="w-full">
-                <SelectValue placeholder="Select recipient…" />
-              </SelectTrigger>
-              <SelectContent>
-                {recipientsQ.data?.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {shortAddr(r)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className={`grid gap-3 ${lockedRecipient ? "" : "sm:grid-cols-2"}`}>
+          {!lockedRecipient && (
+            <div className="space-y-2">
+              <Label htmlFor="disc-recipient">Recipient</Label>
+              <Select value={recipientState || undefined} onValueChange={setRecipient}>
+                <SelectTrigger id="disc-recipient" className="w-full">
+                  <SelectValue placeholder="Select recipient…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {recipientsQ.data?.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {shortAddr(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="disc-type">Disclose</Label>
             <Select value={String(dtype)} onValueChange={(v) => setDtype(Number(v) as DisclosureType)}>
@@ -591,5 +572,46 @@ function VestingDisclosureCard({ d }: { d: Distribution }) {
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
     </Card>
+  )
+}
+
+// Per-recipient admin actions, opened from a Recipients row — the address is locked so
+// there's no selector to repeat. Figures / Claim on behalf / Disclose for this recipient.
+function RecipientManageSheet({ d, recipient }: { d: Distribution; recipient: Address }) {
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="sm">
+          Manage →
+        </Button>
+      </SheetTrigger>
+      <SheetContent aria-describedby={undefined}>
+        <SheetHeader>
+          <SheetTitle className="font-mono text-base">{shortAddr(recipient)}</SheetTitle>
+        </SheetHeader>
+        <div className="px-6 pb-6">
+          <Tabs defaultValue="figures" className="space-y-4">
+            <TabsList className="w-full">
+              <TabsTrigger value="figures">Figures</TabsTrigger>
+              <TabsTrigger value="claim">Claim</TabsTrigger>
+              <TabsTrigger value="disclose">Disclose</TabsTrigger>
+              <TabsTrigger value="revoke">Revoke</TabsTrigger>
+            </TabsList>
+            <TabsContent value="figures">
+              <VestingAdminViewsCard d={d} recipient={recipient} />
+            </TabsContent>
+            <TabsContent value="claim">
+              <VestingClaimerCard d={d} recipient={recipient} />
+            </TabsContent>
+            <TabsContent value="disclose">
+              <VestingDisclosureCard d={d} recipient={recipient} />
+            </TabsContent>
+            <TabsContent value="revoke">
+              <VestingRevokeCard d={d} recipient={recipient} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }

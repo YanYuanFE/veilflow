@@ -1,8 +1,8 @@
 import { useState } from "react"
-import { isAddress, parseUnits, parseEther, type Address } from "viem"
+import { isAddress, parseUnits, parseEther, formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
-import { useZamaSDK } from "@zama-fhe/react-sdk"
+import { useZamaSDK, useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
   useRoleConstants,
   useGrantRole,
@@ -14,6 +14,15 @@ import {
   useWithdrawAdmin,
   useWithdrawOtherToken,
   useWithdrawOtherConfidentialToken,
+  useAllRecipients,
+  useRecipientVestings,
+  useAdminClaim,
+  useAdminPartialClaim,
+  useAdminGetTotalAllocation,
+  useAdminGetVestedAmount,
+  useAdminGetClaimableAmount,
+  useAdminGetSettledAmount,
+  useAdminGetTokenBalance,
 } from "@tokenops/sdk/fhe-vesting/react"
 import { FeeType } from "@tokenops/sdk/fhe-vesting"
 import { Button } from "@/components/ui/button"
@@ -269,6 +278,295 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
             </Button>
           </div>
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Admin claim-on-behalf — push a recipient's vested tokens to them without their
+// signature (treasury sweep / gas-sponsored claim). Needs the manager's CLAIMER_ROLE.
+export function VestingClaimerCard({ d, recipient: lockedRecipient }: { d: Distribution; recipient?: Address }) {
+  const sdk = useZamaSDK()
+  const manager = d.contractAddress as Address
+  const decimals = numberConfig(d, "decimals", 6)
+
+  const recipientsQ = useAllRecipients({ address: manager })
+  const feeInfo = useManagerFeeInfo({ address: manager })
+  const adminClaim = useAdminClaim({ address: manager })
+  const adminPartial = useAdminPartialClaim({ address: manager, encryptor: () => sdk.relayer })
+
+  const [recipientState, setRecipient] = useState("")
+  const recipient = lockedRecipient ?? recipientState
+  const vestingsQ = useRecipientVestings({
+    address: manager,
+    recipient: isAddress(recipient) ? (recipient as Address) : undefined,
+  })
+  const ids = vestingsQ.data ?? []
+  const [vestingId, setVestingId] = useState("")
+  const effectiveId = (vestingId || (ids.length === 1 ? ids[0] : "")) as Hex | ""
+  const [amount, setAmount] = useState("")
+
+  const fee = feeInfo.data
+  const busy = adminClaim.isPending || adminPartial.isPending
+
+  const onClaim = async () => {
+    if (!effectiveId || !fee) return
+    const vid = effectiveId
+    try {
+      if (amount.trim()) {
+        const wei = parseUnits(amount.trim(), decimals)
+        if (wei <= 0n) return
+        await adminPartial.mutateAsync(
+          fee.feeType === FeeType.Gas ? { vestingId: vid, amount: wei, value: fee.fee } : { vestingId: vid, amount: wei },
+        )
+      } else {
+        await adminClaim.mutateAsync(
+          fee.feeType === FeeType.Gas ? { vestingId: vid, feeType: fee.feeType, value: fee.fee } : { vestingId: vid, feeType: fee.feeType },
+        )
+      }
+      setAmount("")
+      toast.success("Claimed on the recipient's behalf — tokens went to their balance")
+    } catch (e) {
+      toast.error(err(e))
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Claim on behalf</CardTitle>
+        <CardDescription>
+          Push a recipient's vested tokens to them without their signature — a treasury sweep / gas-sponsored claim.
+          Requires the manager's claimer role. Leave the amount blank to claim everything vested, or enter a partial amount.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className={`grid gap-3 ${lockedRecipient ? "" : "sm:grid-cols-2"}`}>
+          {!lockedRecipient && (
+            <div className="space-y-2">
+              <Label htmlFor="claimer-recipient">Recipient</Label>
+              <Select
+                value={recipientState || undefined}
+                onValueChange={(v) => {
+                  setRecipient(v)
+                  setVestingId("")
+                }}
+              >
+                <SelectTrigger id="claimer-recipient" className="w-full">
+                  <SelectValue placeholder="Select recipient…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {recipientsQ.data?.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {shortAddr(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="claimer-amount">Amount</Label>
+            <Input
+              id="claimer-amount"
+              inputMode="decimal"
+              placeholder="All vested"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+        </div>
+        {ids.length > 1 && (
+          <div className="space-y-2">
+            <Label htmlFor="claimer-vesting">Vesting</Label>
+            <Select value={vestingId || undefined} onValueChange={setVestingId}>
+              <SelectTrigger id="claimer-vesting" className="w-full">
+                <SelectValue placeholder="Select vesting…" />
+              </SelectTrigger>
+              <SelectContent>
+                {ids.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {shortAddr(id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <Button onClick={onClaim} disabled={!effectiveId || !fee || busy}>
+          {busy ? "Claiming…" : amount.trim() ? "Claim partial on behalf" : "Claim all vested on behalf"}
+        </Button>
+        {isAddress(recipient) && !vestingsQ.isLoading && ids.length === 0 && (
+          <p className="text-xs text-muted-foreground">No vesting found for that recipient.</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+type AdminMetric = "claimable" | "vested" | "settled" | "total" | "balance"
+const ADMIN_METRICS: { value: AdminMetric; label: string; needsVesting: boolean }[] = [
+  { value: "claimable", label: "Claimable now", needsVesting: true },
+  { value: "vested", label: "Vested so far", needsVesting: true },
+  { value: "settled", label: "Settled (claimed)", needsVesting: true },
+  { value: "total", label: "Total allocation", needsVesting: true },
+  { value: "balance", label: "Manager token balance", needsVesting: false },
+]
+
+// Admin-side encrypted views — decrypt a recipient's figures (or the manager's own
+// balance) with the caller's admin permission. For audits / treasury checks; visible
+// only to the caller, nothing is published.
+export function VestingAdminViewsCard({ d, recipient: lockedRecipient }: { d: Distribution; recipient?: Address }) {
+  const manager = d.contractAddress as Address
+  const decimals = numberConfig(d, "decimals", 6)
+
+  const recipientsQ = useAllRecipients({ address: manager })
+  const [recipientState, setRecipient] = useState("")
+  const recipient = lockedRecipient ?? recipientState
+  const vestingsQ = useRecipientVestings({
+    address: manager,
+    recipient: isAddress(recipient) ? (recipient as Address) : undefined,
+  })
+  const ids = vestingsQ.data ?? []
+  const [vestingId, setVestingId] = useState("")
+  const effectiveId = (vestingId || (ids.length === 1 ? ids[0] : "")) as Hex | ""
+  const [metric, setMetric] = useState<AdminMetric>("claimable")
+  const needsVesting = ADMIN_METRICS.find((m) => m.value === metric)?.needsVesting ?? true
+
+  const getTotal = useAdminGetTotalAllocation({ address: manager })
+  const getVested = useAdminGetVestedAmount({ address: manager })
+  const getClaimable = useAdminGetClaimableAmount({ address: manager })
+  const getSettled = useAdminGetSettledAmount({ address: manager })
+  const getBalance = useAdminGetTokenBalance({ address: manager })
+
+  const [viewHandle, setViewHandle] = useState<Hex>()
+  const decrypt = useUserDecrypt(
+    { handles: viewHandle ? [{ handle: viewHandle, contractAddress: manager }] : [] },
+    { enabled: !!viewHandle },
+  )
+  const revealed = viewHandle ? decrypt.data?.[viewHandle] : undefined
+  const pending =
+    getTotal.isPending || getVested.isPending || getClaimable.isPending || getSettled.isPending || getBalance.isPending
+  const revealing = pending || (!!viewHandle && revealed === undefined && !decrypt.error)
+
+  const onReveal = async () => {
+    setViewHandle(undefined)
+    try {
+      if (metric === "balance") {
+        const r = await getBalance.mutateAsync(undefined)
+        setViewHandle(r.handle)
+        return
+      }
+      if (!effectiveId) return
+      const vid = effectiveId
+      const r =
+        metric === "total"
+          ? await getTotal.mutateAsync({ vestingId: vid })
+          : metric === "vested"
+            ? await getVested.mutateAsync({ vestingId: vid, timestamp: Math.floor(Date.now() / 1000) })
+            : metric === "claimable"
+              ? await getClaimable.mutateAsync({ vestingId: vid })
+              : await getSettled.mutateAsync({ vestingId: vid })
+      setViewHandle(r.handle)
+    } catch (e) {
+      toast.error(err(e))
+    }
+  }
+
+  const canReveal = (needsVesting ? !!effectiveId : true) && !revealing
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Admin views</CardTitle>
+        <CardDescription>
+          Decrypt a recipient's confidential figures (or the manager's own token balance) with your admin permission —
+          for audits and treasury checks. Visible only to you; nothing is published.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="views-metric">Figure</Label>
+            <Select
+              value={metric}
+              onValueChange={(v) => {
+                setMetric(v as AdminMetric)
+                setViewHandle(undefined)
+              }}
+            >
+              <SelectTrigger id="views-metric" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ADMIN_METRICS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {needsVesting && !lockedRecipient && (
+            <div className="space-y-2">
+              <Label htmlFor="views-recipient">Recipient</Label>
+              <Select
+                value={recipientState || undefined}
+                onValueChange={(v) => {
+                  setRecipient(v)
+                  setVestingId("")
+                  setViewHandle(undefined)
+                }}
+              >
+                <SelectTrigger id="views-recipient" className="w-full">
+                  <SelectValue placeholder="Select recipient…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {recipientsQ.data?.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {shortAddr(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        {needsVesting && ids.length > 1 && (
+          <div className="space-y-2">
+            <Label htmlFor="views-vesting">Vesting</Label>
+            <Select
+              value={vestingId || undefined}
+              onValueChange={(v) => {
+                setVestingId(v)
+                setViewHandle(undefined)
+              }}
+            >
+              <SelectTrigger id="views-vesting" className="w-full">
+                <SelectValue placeholder="Select vesting…" />
+              </SelectTrigger>
+              <SelectContent>
+                {ids.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {shortAddr(id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="outline" onClick={onReveal} disabled={!canReveal}>
+            {revealing ? "Decrypting…" : "Reveal"}
+          </Button>
+          <span className="font-mono text-sm text-foreground">
+            {typeof revealed === "bigint" ? formatUnits(revealed, decimals) : ""}
+          </span>
+        </div>
+        {decrypt.error && <p className="text-xs text-destructive">{err(decrypt.error)}</p>}
+        {needsVesting && isAddress(recipient) && !vestingsQ.isLoading && ids.length === 0 && (
+          <p className="text-xs text-muted-foreground">No vesting found for that recipient.</p>
+        )}
       </CardContent>
     </Card>
   )

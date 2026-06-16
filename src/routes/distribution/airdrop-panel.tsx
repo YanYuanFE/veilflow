@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { isAddress, parseUnits, formatUnits, type Address, type Hex } from "viem"
+import { isAddress, parseUnits, parseEther, formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
 import { useZamaSDK, useConfidentialApprove, useConfidentialTransfer } from "@zama-fhe/react-sdk"
@@ -11,6 +11,7 @@ import {
   useSetPaused,
   useExtendClaimWindow,
   useWithdraw,
+  useAirdropWithdrawGasFee,
   useWithdrawOtherToken,
   useWithdrawOtherConfidentialToken,
   useAirdropGrantRole,
@@ -74,7 +75,8 @@ export function DeployCard({ d }: { d: Distribution }) {
 
   const writeBack = async (airdrop: Address, hash: Hex) => {
     setPhase("Writing back…")
-    await patchDistribution(d.id, { contractAddress: airdrop, deployTxHash: hash, status: "funded", config: { ...d.config, fundedAmount: fund } })
+    // Privacy red line: the funding total is a plaintext amount — never persist it to the CMS.
+    await patchDistribution(d.id, { contractAddress: airdrop, deployTxHash: hash, status: "funded" })
     queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
     setPhase(undefined)
   }
@@ -185,7 +187,6 @@ export function IssueCard({ d }: { d: Distribution }) {
   const issuedCount = recipientsQ.data?.length ?? 0
   const fresh = entries.filter((e) => !issued.has(e.recipient.toLowerCase()))
   const batchTotal = fresh.reduce((a, e) => a + e.amount, 0n)
-  const pool = typeof d.config.fundedAmount === "string" ? d.config.fundedAmount : null
   const endTs = typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null
   // Prefer the on-chain end state (reflects extensions); while that read loads,
   // fall back to the config end time so an already-closed window still blocks
@@ -240,15 +241,22 @@ export function IssueCard({ d }: { d: Distribution }) {
             <div>
               <CardTitle>Add recipients</CardTitle>
               <CardDescription>
-                One <span className="font-mono">address, amount</span> per line, or upload a CSV. Encrypted &amp; signed
-                per recipient, in your browser.
+                One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
+                <button
+                  type="button"
+                  onClick={downloadRecipientTemplate}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  download a template
+                </button>
+                . Encrypted &amp; signed per recipient, in your browser.
               </CardDescription>
             </div>
             {d.status === "funded" && (
               <GoLiveDialog
                 onConfirm={goLive}
                 checks={[
-                  { label: "Pool deployed & funded", ok: true, detail: pool ? `${pool} funded` : undefined },
+                  { label: "Pool deployed & funded", ok: true },
                   { label: "At least one recipient issued", ok: issuedCount > 0, blocking: true, detail: `${issuedCount} issued` },
                   { label: "Claim window still open", ok: !windowClosed, blocking: true, detail: endTs ? `closes ${fmtTime(endTs)}` : undefined },
                 ]}
@@ -265,7 +273,7 @@ export function IssueCard({ d }: { d: Distribution }) {
           />
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               type="button"
               disabled={!address}
@@ -284,11 +292,8 @@ export function IssueCard({ d }: { d: Distribution }) {
                 e.target.value = ""
               }}
             />
-            <Button variant="ghost" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+            <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
               Upload CSV
-            </Button>
-            <Button variant="ghost" size="sm" type="button" onClick={downloadRecipientTemplate}>
-              CSV template
             </Button>
             <span className="text-muted-foreground">
               {fresh.length} to add
@@ -303,13 +308,8 @@ export function IssueCard({ d }: { d: Distribution }) {
               ))}
             </ul>
           )}
-          {(batchTotal > 0n || pool) && (
+          {batchTotal > 0n && (
             <p className="text-xs text-muted-foreground">
-              {pool && (
-                <>
-                  Pool funded · <span className="font-mono text-foreground">{pool}</span> ·{" "}
-                </>
-              )}
               This batch · <span className="font-mono text-foreground">{formatUnits(batchTotal, decimals)}</span> across {fresh.length}
             </p>
           )}
@@ -327,8 +327,6 @@ export function IssueCard({ d }: { d: Distribution }) {
         </CardContent>
       </Card>
 
-      {airdrop && <TopUpPoolCard token={d.token as Address} pool={airdrop} decimals={decimals} />}
-
       <Card>
         <CardHeader>
           <CardTitle>Issued ({recipientsQ.data?.length ?? 0})</CardTitle>
@@ -341,8 +339,6 @@ export function IssueCard({ d }: { d: Distribution }) {
           ))}
         </CardContent>
       </Card>
-
-      <AdminCard d={d} />
     </div>
   )
 }
@@ -378,7 +374,7 @@ function IssuedRow({ airdrop, r }: { airdrop: Address; r: RecipientArtifact }) {
 // confidential balance, so a direct confidentialTransfer to the contract funds
 // it (per the SDK: fund "via createAndFund… or a follow-up confidentialTransfer").
 // No factory / userSalt / gasFee needed — works for any airdrop.
-function TopUpPoolCard({ token, pool, decimals }: { token: Address; pool: Address; decimals: number }) {
+export function TopUpPoolCard({ token, pool, decimals }: { token: Address; pool: Address; decimals: number }) {
   const { isConnected } = useAccount()
   const transfer = useConfidentialTransfer({ tokenAddress: token })
   const [amount, setAmount] = useState("")
@@ -426,7 +422,7 @@ function TopUpPoolCard({ token, pool, decimals }: { token: Address; pool: Addres
   )
 }
 
-function AdminCard({ d }: { d: Distribution }) {
+export function AdminCard({ d }: { d: Distribution }) {
   const queryClient = useQueryClient()
   const { address } = useAccount()
   const airdrop = d.contractAddress as Address
@@ -437,6 +433,7 @@ function AdminCard({ d }: { d: Distribution }) {
   const setPaused = useSetPaused({ address: airdrop })
   const extend = useExtendClaimWindow({ address: airdrop })
   const withdraw = useWithdraw({ address: airdrop })
+  const withdrawGas = useAirdropWithdrawGasFee({ address: airdrop })
   const grantRole = useAirdropGrantRole({ address: airdrop })
   const revokeRole = useAirdropRevokeRole({ address: airdrop })
   const wOther = useWithdrawOtherToken({ address: airdrop })
@@ -445,6 +442,8 @@ function AdminCard({ d }: { d: Distribution }) {
   const [newEnd, setNewEnd] = useState("")
   const [to, setTo] = useState("")
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
+  const [feeTo, setFeeTo] = useState("")
+  const [feeAmount, setFeeAmount] = useState("")
   const [roleTarget, setRoleTarget] = useState("")
   const [rescueToken, setRescueToken] = useState("")
   const [rescueTo, setRescueTo] = useState("")
@@ -490,6 +489,18 @@ function AdminCard({ d }: { d: Distribution }) {
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
       setConfirmWithdraw(false)
       toast.success("Withdrew remaining balance")
+    } catch (e) {
+      toast.error(err(e))
+    }
+  }
+  const onWithdrawGasFee = async () => {
+    const recipient = (isAddress(feeTo) ? feeTo : address) as Address | undefined
+    if (!recipient) return
+    try {
+      // Blank amount → 0n, which the contract treats as "withdraw the entire gas-fee balance".
+      await withdrawGas.mutateAsync({ recipient, amount: feeAmount.trim() ? parseEther(feeAmount.trim()) : 0n })
+      setFeeAmount("")
+      toast.success("Withdrew collected gas fees")
     } catch (e) {
       toast.error(err(e))
     }
@@ -541,7 +552,7 @@ function AdminCard({ d }: { d: Distribution }) {
             <p className="mt-1 text-sm text-foreground">{pausedQ.isLoading ? "…" : isPaused ? "Paused" : "Open"}</p>
           </div>
           <Button
-            variant={isPaused ? "default" : "outline"}
+            variant={isPaused ? "default" : "destructive"}
             size="sm"
             onClick={onPause}
             disabled={setPaused.isPending || pausedQ.isLoading}
@@ -601,6 +612,45 @@ function AdminCard({ d }: { d: Distribution }) {
             )}
           </div>
           {to && !isAddress(to) && <p className="text-sm text-destructive">Invalid address.</p>}
+        </div>
+
+        {/* Withdraw gas fees */}
+        <div className="space-y-2 border-t border-border pt-5">
+          <Kicker className="tracking-[0.12em]">Withdraw gas fees</Kicker>
+          <p className="text-xs text-muted-foreground">
+            Reclaim the ETH gas fees recipients paid on claim. Needs the fee-collector role. Leave the amount blank to
+            withdraw everything.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1 space-y-2">
+              <Label htmlFor="gasfee-to">To</Label>
+              <Input
+                id="gasfee-to"
+                placeholder={address ? `${shortAddr(address)} (you)` : "0x… recipient"}
+                value={feeTo}
+                onChange={(e) => setFeeTo(e.target.value.trim())}
+              />
+            </div>
+            <div className="w-32 space-y-2">
+              <Label htmlFor="gasfee-amount">Amount (ETH)</Label>
+              <Input
+                id="gasfee-amount"
+                inputMode="decimal"
+                placeholder="All"
+                value={feeAmount}
+                onChange={(e) => setFeeAmount(e.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onWithdrawGasFee}
+              disabled={withdrawGas.isPending || (!!feeTo && !isAddress(feeTo))}
+            >
+              {withdrawGas.isPending ? "Withdrawing…" : "Withdraw fees"}
+            </Button>
+          </div>
+          {feeTo && !isAddress(feeTo) && <p className="text-sm text-destructive">Invalid address.</p>}
         </div>
 
         {/* Delegate admin */}

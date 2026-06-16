@@ -3,13 +3,13 @@ import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { cn } from "@/lib/utils"
 import { Kicker } from "@/components/editorial"
 import { Logomark } from "@/components/logomark"
+import { ErrorBoundary } from "@/components/error-boundary"
 
-const NAV = [
+const NAV: { to: string; label: string; aliases?: string[] }[] = [
   { to: "/dashboard", label: "Distributions" },
   { to: "/create", label: "Create" },
   { to: "/claims", label: "Claims" },
-  { to: "/wrap", label: "Wrap" },
-  { to: "/unwrap", label: "Unwrap" },
+  { to: "/wrap", label: "Wrap / Unwrap", aliases: ["/unwrap"] },
   { to: "/audit", label: "Audit" },
   { to: "/docs", label: "Docs" },
 ]
@@ -45,7 +45,7 @@ export function Layout() {
                   className={({ isActive }) =>
                     cn(
                       "relative shrink-0 py-1 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
-                      isActive &&
+                      (isActive || (n.aliases?.includes(pathname) ?? false)) &&
                         "text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-seal after:content-['']",
                     )
                   }
@@ -63,7 +63,9 @@ export function Layout() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-12">
         <div key={pathname} className="page-enter">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
 

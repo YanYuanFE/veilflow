@@ -4,6 +4,7 @@ import { useAccount } from "wagmi"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { StatusBadge } from "@/components/status-badge"
 import { Kicker, Notice } from "@/components/editorial"
+import { Loading } from "@/components/spinner"
 import { listClaimsFor } from "@/lib/api"
 import { shortAddr } from "@/lib/format"
 
@@ -35,7 +36,7 @@ export function Claims() {
           </div>
         </div>
       ) : q.isLoading ? (
-        <Kicker>Looking up your allocations…</Kicker>
+        <Loading label="Looking up your allocations…" />
       ) : q.error ? (
         <Notice tone="void">{q.error.message}</Notice>
       ) : rows.length === 0 ? (

@@ -5,7 +5,7 @@ import { SEPOLIA_RPC_URL } from "@/lib/config"
 
 export const wagmiConfig = getDefaultConfig({
   appName: "VeilFlow",
-  projectId: "VEILFLOW_DEV_PLACEHOLDER",
+  projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || "VEILFLOW_DEV_PLACEHOLDER",
   chains: [sepolia],
   transports: {
     [sepolia.id]: http(SEPOLIA_RPC_URL),

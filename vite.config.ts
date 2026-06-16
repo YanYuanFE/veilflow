@@ -11,6 +11,7 @@ import tailwindcss from "@tailwindcss/vite"
 function devApi(): Plugin {
   const match = (pathname: string): { file: string; params: Record<string, string> } | null => {
     const parts = pathname.replace(/^\/api\//, "").replace(/\/$/, "").split("/")
+    if (parts[0] === "auth") return parts.length === 2 ? { file: "/api/auth/[action].ts", params: { action: parts[1] } } : null
     if (parts[0] === "disclosures") return parts.length === 1 ? { file: "/api/disclosures/index.ts", params: {} } : null
     if (parts[0] !== "distributions") return null
     if (parts.length === 1) return { file: "/api/distributions/index.ts", params: {} }

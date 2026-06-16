@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { Kicker, Notice } from "@/components/editorial"
+import { Loading } from "@/components/spinner"
 import { listDistributions } from "@/lib/api"
 import { lifecycle } from "@/lib/lifecycle"
 import { shortAddr } from "@/lib/format"
@@ -45,7 +46,7 @@ export function Dashboard() {
           </div>
         </div>
       ) : q.isLoading ? (
-        <Kicker>Loading the register…</Kicker>
+        <Loading label="Loading the register…" />
       ) : q.error ? (
         <Notice tone="void">{q.error.message}</Notice>
       ) : rows.length === 0 ? (
@@ -67,7 +68,7 @@ export function Dashboard() {
             <li key={d.id}>
               <Link
                 to={`/d/${d.id}`}
-                className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto]"
+                className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_8rem]"
               >
                 <div className="min-w-0">
                   <h3 className="font-display truncate text-xl tracking-tight text-foreground">

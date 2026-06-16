@@ -7,8 +7,7 @@ const NAV_LINKS = [
   { to: "/dashboard", label: "Distributions" },
   { to: "/create", label: "Create" },
   { to: "/claims", label: "Claims" },
-  { to: "/wrap", label: "Wrap" },
-  { to: "/unwrap", label: "Unwrap" },
+  { to: "/wrap", label: "Wrap / Unwrap" },
   { to: "/audit", label: "Audit" },
 ]
 
@@ -58,6 +57,54 @@ const FEATURES = [
     ),
     title: "Selective Disclosure",
     body: "Grant a named auditor read-only access to a single figure. Prove compliance for one allocation without exposing anyone else's.",
+  },
+]
+
+// The three distribution shapes the console supports — the actual product.
+// Issuer flow + recipient flow mirrors how the app routes each instrument.
+const INSTRUMENTS = [
+  {
+    id: "airdrop",
+    index: "01",
+    title: "Airdrop",
+    blurb: "Signature-authorized claims. Each amount is encrypted to its recipient; they reveal and claim at a branded page.",
+    issuer: "Sign claims",
+    recipient: "Reveal + claim at /claim/:slug",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v12" />
+        <path d="M7 10l5 5 5-5" />
+        <path d="M5 21h14" />
+      </svg>
+    ),
+  },
+  {
+    id: "vesting",
+    index: "02",
+    title: "Vesting",
+    blurb: "Linear unlock with cliff and initial release, batch-created in one transaction. Recipients claim the vested portion over time.",
+    issuer: "Batch-create vestings",
+    recipient: "Claim what's vested so far",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 17l5-5 4 4 8-8" />
+        <path d="M16 8h4v4" />
+      </svg>
+    ),
+  },
+  {
+    id: "disperse",
+    index: "03",
+    title: "Disperse",
+    blurb: "One encrypted batch, sent directly. Lands in the recipient's confidential balance instantly — no claim step.",
+    issuer: "One-shot batch send",
+    recipient: "Receives into confidential balance",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 2L11 13" />
+        <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+      </svg>
+    ),
   },
 ]
 
@@ -197,14 +244,29 @@ export function VariantLanding() {
           <div className="vl-metadata-tag">
             <span className="vl-dot-gold" /> [NETWORK_SEPOLIA] 0x7984_V1.0
           </div>
-          <h1>The confidential layer for on-chain distributions.</h1>
+          <h1>
+            Airdrops, vesting, disperse —
+            <br />
+            <span className="vl-hero-accent">with every amount encrypted.</span>
+          </h1>
           <p className="vl-hero-sub">
-            VeilFlow wraps assets in end-to-end encryption, ensuring token distribution amounts stay sealed from launch
-            to claim.
+            One console for any shape of confidential token distribution. Issuers connect a wallet, pick an instrument,
+            and distribute ERC-7984 tokens — while amounts stay sealed on-chain.
           </p>
+          <div className="vl-trust">
+            <span className="vl-trust-icon" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
+            <span className="vl-trust-text">
+              <strong>Plaintext never leaves your browser.</strong> The backend only ever sees ciphertext artifacts.
+            </span>
+          </div>
           <div className="vl-cta-group">
-            <Link to="/dashboard" className="vl-btn-primary">
-              Launch Console
+            <Link to="/create" className="vl-btn-primary">
+              Create a distribution
               <svg
                 width="20"
                 height="20"
@@ -247,10 +309,42 @@ export function VariantLanding() {
           </div>
         </section>
 
+        <section id="instruments" className="vl-section">
+          <div className="vl-section-header">
+            <div className="vl-metadata-tag">01 / INSTRUMENTS</div>
+            <h2>Three ways to distribute, all confidential.</h2>
+            <p className="vl-section-lede">
+              Same encrypted foundation, three distribution shapes — pick the one that fits the moment of the tokens.
+            </p>
+          </div>
+          <div className="vl-instruments">
+            {INSTRUMENTS.map((it) => (
+              <article className="vl-instrument-card" key={it.id}>
+                <div className="vl-instrument-top">
+                  <span className="vl-instrument-index">№ {it.index}</span>
+                  {it.icon}
+                </div>
+                <h3>{it.title}</h3>
+                <p className="vl-instrument-blurb">{it.blurb}</p>
+                <dl className="vl-instrument-meta">
+                  <div>
+                    <dt>Issuer</dt>
+                    <dd>{it.issuer}</dd>
+                  </div>
+                  <div>
+                    <dt>Recipient</dt>
+                    <dd>{it.recipient}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section id="infrastructure" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">01 / ARCHITECTURE</div>
-            <h2>Native Privacy Infrastructure.</h2>
+            <div className="vl-metadata-tag">02 / ARCHITECTURE</div>
+            <h2>Native privacy infrastructure.</h2>
           </div>
           <div className="vl-grid-features">
             {FEATURES.map((f) => (
@@ -265,8 +359,8 @@ export function VariantLanding() {
 
         <section id="console-preview" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">02 / INTERFACE</div>
-            <h2>The Distribution Console.</h2>
+            <div className="vl-metadata-tag">03 / INTERFACE</div>
+            <h2>The distribution console.</h2>
           </div>
           <div className="vl-console">
             <div className="vl-console-header">

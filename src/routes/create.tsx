@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DateTimePicker } from "@/components/ui/datetime-picker"
 import { Kicker, Folio, Notice } from "@/components/editorial"
+import { FeeDisclosure } from "@/components/fee-disclosure"
 import { cn } from "@/lib/utils"
 import { slugify } from "@/lib/format"
 import { useNowSeconds } from "@/lib/use-now"
@@ -42,8 +43,10 @@ export function Create() {
   const [canExtend, setCanExtend] = useState(false)
   // Vesting schedule (set once; applies to every recipient added later)
   const [cliffDays, setCliffDays] = useState("0")
+  const [cliffAmountPct, setCliffAmountPct] = useState("0")
   const [intervalDays, setIntervalDays] = useState("30")
   const [initialUnlockPct, setInitialUnlockPct] = useState("0")
+  const [timelockDays, setTimelockDays] = useState("0")
   const [revocable, setRevocable] = useState(false)
 
   const validToken = isAddress(token)
@@ -56,8 +59,10 @@ export function Create() {
   const validWindow = endTs !== null && endTs > now && (startTs === null || endTs > startTs)
 
   const cliffDaysN = Number(cliffDays)
+  const cliffAmountPctN = Number(cliffAmountPct)
   const intervalDaysN = Number(intervalDays)
   const initialPctN = Number(initialUnlockPct)
+  const timelockDaysN = Number(timelockDays)
   const vestingValid =
     startTs !== null &&
     endTs !== null &&
@@ -65,7 +70,10 @@ export function Create() {
     endTs > now &&
     Number.isFinite(cliffDaysN) && cliffDaysN >= 0 && cliffDaysN * 86_400 <= endTs - startTs &&
     Number.isFinite(intervalDaysN) && intervalDaysN >= 1 &&
-    Number.isFinite(initialPctN) && initialPctN >= 0 && initialPctN <= 100
+    Number.isFinite(initialPctN) && initialPctN >= 0 &&
+    Number.isFinite(cliffAmountPctN) && cliffAmountPctN >= 0 &&
+    initialPctN + cliffAmountPctN <= 100 &&
+    Number.isFinite(timelockDaysN) && timelockDaysN >= 0
 
   const create = useMutation({
     mutationFn: () =>
@@ -83,9 +91,9 @@ export function Create() {
                 endTimestamp: endTs,
                 cliffSeconds: Math.round(cliffDaysN * 86_400),
                 releaseIntervalSecs: Math.round(intervalDaysN * 86_400),
-                timelockSeconds: 0,
+                timelockSeconds: Math.round(timelockDaysN * 86_400),
                 initialUnlockBps: Math.round(initialPctN * 100),
-                cliffAmountBps: 0,
+                cliffAmountBps: Math.round(cliffAmountPctN * 100),
                 isRevocable: revocable,
               }
             : type === "disperse"
@@ -251,6 +259,10 @@ export function Create() {
                   <Input id="cliff" inputMode="numeric" value={cliffDays} onChange={(e) => setCliffDays(e.target.value)} />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="cliff-unlock">Cliff unlock (%)</Label>
+                  <Input id="cliff-unlock" inputMode="decimal" value={cliffAmountPct} onChange={(e) => setCliffAmountPct(e.target.value)} />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="interval">Release interval (days)</Label>
                   <Input id="interval" inputMode="numeric" value={intervalDays} onChange={(e) => setIntervalDays(e.target.value)} />
                 </div>
@@ -258,19 +270,27 @@ export function Create() {
                   <Label htmlFor="initial">Initial unlock (%)</Label>
                   <Input id="initial" inputMode="decimal" value={initialUnlockPct} onChange={(e) => setInitialUnlockPct(e.target.value)} />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="timelock">Timelock (days)</Label>
+                  <Input id="timelock" inputMode="numeric" value={timelockDays} onChange={(e) => setTimelockDays(e.target.value)} />
+                </div>
                 <label className="flex items-end gap-2.5 pb-2 text-sm text-foreground">
                   <input type="checkbox" className="size-4 accent-seal" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
                   Revocable by admin
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                These terms apply to every recipient; you add recipients (with per-recipient amounts) after deploying.
+                These terms apply to every recipient; you add recipients (with per-recipient amounts) after deploying. Initial
+                unlock releases at start, cliff unlock releases when the cliff ends, the remainder vests linearly each interval;
+                timelock delays when released tokens become claimable.
               </p>
-              {(start || end || cliffDays !== "0" || initialUnlockPct !== "0") && !vestingValid && (
-                <p className="text-sm text-destructive">
-                  Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial unlock 0–100%.
-                </p>
-              )}
+              {(start || end || cliffDays !== "0" || initialUnlockPct !== "0" || cliffAmountPct !== "0" || timelockDays !== "0") &&
+                !vestingValid && (
+                  <p className="text-sm text-destructive">
+                    Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial + cliff
+                    unlock 0–100%, timelock ≥ 0.
+                  </p>
+                )}
             </div>
           )}
 
@@ -280,6 +300,8 @@ export function Create() {
               &amp; amounts after creating.
             </Notice>
           )}
+
+          {type && address && <FeeDisclosure type={type} creator={address} />}
 
           <div className="flex items-center gap-4 border-t border-border pt-5">
             <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>

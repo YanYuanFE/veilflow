@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useState } from "react"
 import { CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -15,8 +15,12 @@ const toLocalInput = (d: Date, time: string) =>
 /**
  * Date + time picker over a `datetime-local`-shaped string (`YYYY-MM-DDTHH:mm`).
  * Date via shadcn Calendar in a Popover; time via shadcn Input[type=time].
+ *
+ * Memoized: an unrelated parent re-render (e.g. the create page's per-second
+ * `now` tick) would otherwise re-render the open calendar and remount the native
+ * month/year `<select>`, stealing focus and closing it before you can pick.
  */
-export function DateTimePicker({
+function DateTimePickerImpl({
   value,
   onChange,
   id,
@@ -96,3 +100,5 @@ export function DateTimePicker({
     </Popover>
   )
 }
+
+export const DateTimePicker = memo(DateTimePickerImpl)

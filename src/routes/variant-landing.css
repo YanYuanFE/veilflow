@@ -311,6 +311,123 @@
   margin: 0 0 16px;
 }
 
+/* Hero highlight — the gold-accented second line of the headline. */
+.vl-hero-accent {
+  color: var(--vl-fg);
+  background-image: linear-gradient(to top, var(--vl-gold) 18%, var(--vl-gold) 58%, transparent 58%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  padding-inline: 0.08em;
+}
+
+/* Trust badge — the red-line promise, surfaced right under the hero copy. */
+.vl-trust {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px solid var(--vl-border);
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  margin-bottom: 40px;
+  max-width: 100%;
+}
+.vl-trust-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--vl-fg);
+}
+.vl-trust-text {
+  font-size: 0.85rem;
+  color: var(--vl-fg);
+  line-height: 1.45;
+}
+.vl-trust-text strong {
+  font-weight: 700;
+}
+
+/* Lede paragraph under a section title. */
+.vl-section-lede {
+  color: var(--vl-muted);
+  font-size: clamp(1rem, 1.4vw, 1.1rem);
+  max-width: 56ch;
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* Instruments — the three distribution shapes. */
+.vl-instruments {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
+}
+.vl-instrument-card {
+  border: 1px solid var(--vl-border);
+  border-radius: clamp(16px, 2vw, 24px);
+  padding: clamp(28px, 3vw, 40px);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  transition: 0.4s;
+  position: relative;
+}
+.vl-instrument-card:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px -20px rgba(0, 0, 0, 0.12);
+}
+.vl-instrument-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.vl-instrument-index {
+  font-family: var(--vl-font-mono);
+  font-size: 0.7rem;
+  color: var(--vl-muted);
+  letter-spacing: 0.16em;
+}
+.vl-instrument-top svg {
+  color: var(--vl-gold);
+}
+.vl-instrument-card h3 {
+  font-size: clamp(1.5rem, 2.5vw, 1.8rem);
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+.vl-instrument-blurb {
+  color: var(--vl-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0;
+}
+.vl-instrument-meta {
+  display: grid;
+  gap: 12px;
+  margin: auto 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--vl-border);
+}
+.vl-instrument-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vl-instrument-meta dt {
+  font-family: var(--vl-font-mono);
+  font-size: 0.6rem;
+  color: var(--vl-muted);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.vl-instrument-meta dd {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--vl-fg);
+}
+
 /* Features */
 .vl-grid-features {
   display: grid;
@@ -499,6 +616,11 @@
     min-height: auto;
   }
   .vl-hero-sub {
+    margin-bottom: 32px;
+  }
+  /* Trust badge spans full width on phones, keeps the two lines readable. */
+  .vl-trust {
+    border-radius: 16px;
     margin-bottom: 32px;
   }
   /* Stack the two CTAs vertically so neither gets cramped. */

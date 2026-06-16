@@ -7,7 +7,13 @@ import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { Lock } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
-import { useGetClaimAmount, useClaim, useAirdropIsSignatureClaimed, useAirdropIsPaused } from "@tokenops/sdk/fhe-airdrop/react"
+import {
+  useGetClaimAmount,
+  useClaim,
+  useAirdropIsSignatureClaimed,
+  useAirdropIsSignatureValid,
+  useAirdropIsPaused,
+} from "@tokenops/sdk/fhe-airdrop/react"
 import {
   useRecipientVestings,
   useManagerFeeInfo,
@@ -104,10 +110,10 @@ export function Claim() {
             <Kicker>Confidential claim · {d.type}</Kicker>
           </span>
           <h1 className="font-display text-[clamp(2.2rem,5vw,3.25rem)] leading-[1.04] text-foreground">
-            {theme.tagline ?? d.name}
+            {theme.title ?? d.name}
           </h1>
           <p className="mx-auto max-w-[46ch] text-[1.0625rem] leading-relaxed text-muted-foreground">
-            Only you can read your own figure. It stays sealed until you decrypt it with your wallet.
+            {theme.description ?? "Only you can read your own figure. It stays sealed until you decrypt it with your wallet."}
           </p>
         </header>
 
@@ -331,6 +337,17 @@ function AirdropClaimPanel({
   })
   const isClaimed = claim.isSuccess || claimedQ.data === true
 
+  // On-chain pre-check: the admin signature is bound to (caller, handle), so an
+  // allocation signed for a different wallet is invalid for the connected one.
+  // Surface that before the claim reverts.
+  const sigValidQ = useAirdropIsSignatureValid({
+    address: airdrop,
+    encryptedAmountHandle: artifact?.handle as Hex | undefined,
+    signature: artifact?.signature as Hex | undefined,
+    caller: address,
+  })
+  const sigInvalid = sigValidQ.data === false
+
   const onReveal = async () => {
     if (!encryptedInput || !artifact?.signature) return
     try {
@@ -370,13 +387,18 @@ function AirdropClaimPanel({
         symbol={symbol}
       />
       {closesIn != null && <Kicker>Window open · closes in {fmtCountdown(closesIn)}</Kicker>}
+      {sigInvalid && (
+        <Notice tone="void">
+          This allocation was authorized for a different wallet — connect the address that was allocated tokens to claim.
+        </Notice>
+      )}
       <div className="flex flex-wrap items-center justify-center gap-3">
         {!revealedNum && (
           <Button variant="outline" onClick={onReveal} disabled={revealing}>
             {revealing ? "Lifting the veil…" : "Decrypt my amount"}
           </Button>
         )}
-        <Button onClick={onClaim} disabled={claim.isPending || isClaimed}>
+        <Button onClick={onClaim} disabled={claim.isPending || isClaimed || sigInvalid}>
           {isClaimed ? "Claimed ✓" : claim.isPending ? "Claiming…" : "Claim tokens"}
         </Button>
       </div>

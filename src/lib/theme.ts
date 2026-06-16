@@ -3,7 +3,8 @@ export interface DistributionTheme {
   mode?: "light" | "dark"
   accent?: string // any CSS color (a hex from the picker) — drives the brand accent (--seal)
   logoUrl?: string
-  tagline?: string
+  title?: string
+  description?: string
 }
 
 /** Safely read the typed theme out of the raw jsonb. */
@@ -13,7 +14,8 @@ export function parseTheme(raw: Record<string, unknown> | null | undefined): Dis
   if (raw.mode === "dark" || raw.mode === "light") t.mode = raw.mode
   if (typeof raw.accent === "string") t.accent = raw.accent
   if (typeof raw.logoUrl === "string") t.logoUrl = raw.logoUrl
-  if (typeof raw.tagline === "string") t.tagline = raw.tagline
+  if (typeof raw.title === "string") t.title = raw.title
+  if (typeof raw.description === "string") t.description = raw.description
   return t
 }
 

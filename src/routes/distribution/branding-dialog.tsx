@@ -26,14 +26,21 @@ export function BrandingDialog({ d }: { d: Distribution }) {
   const [mode, setMode] = useState<"light" | "dark">(t0.mode ?? "light")
   const [accent, setAccent] = useState(t0.accent ?? "#e0b21f")
   const [logoUrl, setLogoUrl] = useState(t0.logoUrl ?? "")
-  const [tagline, setTagline] = useState(t0.tagline ?? "")
+  const [title, setTitle] = useState(t0.title ?? "")
+  const [description, setDescription] = useState(t0.description ?? "")
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
     setSaving(true)
     try {
       await patchDistribution(d.id, {
-        theme: { mode, accent, logoUrl: logoUrl.trim() || undefined, tagline: tagline.trim() || undefined },
+        theme: {
+          mode,
+          accent,
+          logoUrl: logoUrl.trim() || undefined,
+          title: title.trim() || undefined,
+          description: description.trim() || undefined,
+        },
       })
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
       toast.success("Branding saved")
@@ -101,12 +108,17 @@ export function BrandingDialog({ d }: { d: Distribution }) {
           <Input id="brand-logo" placeholder="https://…/logo.svg" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="brand-tagline">Tagline</Label>
-          <Input
-            id="brand-tagline"
-            placeholder="Series A — investor allocation"
-            value={tagline}
-            onChange={(e) => setTagline(e.target.value)}
+          <Label htmlFor="brand-title">Title</Label>
+          <Input id="brand-title" placeholder={d.name} value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="brand-description">Description</Label>
+          <textarea
+            id="brand-description"
+            placeholder="Only you can read your own figure…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="min-h-20 w-full rounded-sm border border-input bg-transparent p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           />
         </div>
 
@@ -127,7 +139,12 @@ export function BrandingDialog({ d }: { d: Distribution }) {
               <span className="rounded-sm bg-seal px-2 py-1 text-[0.6875rem] font-semibold text-seal-foreground">Decrypt</span>
             </div>
             <div className="bg-background px-4 pb-4">
-              {tagline && <p className="font-serif mb-3 text-sm text-muted-foreground">{tagline}</p>}
+              {(title || description) && (
+                <div className="mb-3 space-y-1">
+                  {title && <p className="font-display text-base text-foreground">{title}</p>}
+                  {description && <p className="font-serif text-sm text-muted-foreground">{description}</p>}
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3 rounded-sm border border-border bg-card px-3 py-2">
                 <span className="text-[0.625rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">Your allocation</span>
                 <span className="veil-bar inline-block h-[1.05em] w-20 rounded-[2px]" />

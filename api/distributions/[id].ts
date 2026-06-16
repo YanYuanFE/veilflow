@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm"
 import { db } from "../_db"
 import { distributions, distributionStatus, type NewDistribution } from "../_schema"
 import { bad, HttpError, methodNotAllowed, requireAddress } from "../_http"
+import { requireSession } from "../_auth"
+import { validateConfig } from "../_config"
 
 const STATUSES = distributionStatus.enumValues
 const TXHASH_RE = /^0x[0-9a-fA-F]{64}$/
@@ -29,6 +31,14 @@ async function get(id: string, res: VercelResponse) {
 // Write-back / reconciliation. Idempotent: re-applying the same address/txHash/status
 // (e.g. after a transient client failure) just overwrites with the same values.
 async function patch(id: string, req: VercelRequest, res: VercelResponse) {
+  const [existing] = await db
+    .select({ creator: distributions.creator, type: distributions.type })
+    .from(distributions)
+    .where(eq(distributions.id, id))
+    .limit(1)
+  if (!existing) return bad(res, "Not found", 404)
+  if (requireSession(req) !== existing.creator) throw new HttpError(403, "Not your distribution")
+
   const b = (req.body ?? {}) as Record<string, unknown>
   const update: Partial<NewDistribution> = { updatedAt: new Date() }
 
@@ -48,8 +58,8 @@ async function patch(id: string, req: VercelRequest, res: VercelResponse) {
     update.deployTxHash = b.deployTxHash
   }
   if (b.config !== undefined) {
-    if (typeof b.config !== "object" || b.config === null) throw new HttpError(400, "config must be an object")
-    update.config = b.config as Record<string, unknown>
+    // Same whitelist as creation — PATCH can't smuggle arbitrary JSON (or a plaintext amount) past validation.
+    update.config = validateConfig(existing.type, b.config)
   }
   if (b.theme !== undefined) {
     if (b.theme !== null && typeof b.theme !== "object") throw new HttpError(400, "theme must be an object or null")

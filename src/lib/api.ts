@@ -49,11 +49,29 @@ export interface DisclosureRecord {
   createdAt: string
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// On-demand auth. Console reads/writes hit session-guarded endpoints; public/on-chain pages
+// (claim, audit, wrap, unwrap) don't. When a guarded request 401s, sign in via SIWE (handler
+// registered by the app at startup) and retry once. Concurrent 401s share a single sign-in.
+let signIn: (() => Promise<void>) | null = null
+let signingIn: Promise<void> | null = null
+
+export function setUnauthorizedHandler(fn: () => Promise<void>) {
+  signIn = fn
+}
+
+async function request<T>(path: string, init?: RequestInit, retry = true): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...init?.headers },
   })
+  if (res.status === 401 && retry && signIn) {
+    signingIn ??= signIn().finally(() => {
+      signingIn = null
+    })
+    await signingIn
+    return request<T>(path, init, false)
+  }
   const body = await res.json().catch(() => null)
   if (!res.ok) {
     const message = body && typeof body.error === "string" ? body.error : `Request failed (${res.status})`

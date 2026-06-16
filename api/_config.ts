@@ -64,6 +64,12 @@ export function validateConfig(type: string, raw: unknown): Json {
   if (cliffSeconds > end - start) throw new HttpError(400, "config.cliffSeconds cannot exceed the vesting duration")
   if (!isInt(c.releaseIntervalSecs) || c.releaseIntervalSecs < 1) throw new HttpError(400, "config.releaseIntervalSecs must be a positive integer")
   if (c.releaseIntervalSecs > end - start) throw new HttpError(400, "config.releaseIntervalSecs cannot exceed the vesting duration")
+  const initialUnlockBps = bps(c.initialUnlockBps, "initialUnlockBps")
+  const cliffAmountBps = bps(c.cliffAmountBps, "cliffAmountBps")
+  // Up-front unlocks can't exceed the whole grant — the rest must have something to vest.
+  if (initialUnlockBps + cliffAmountBps > 10_000) {
+    throw new HttpError(400, "config.initialUnlockBps + cliffAmountBps cannot exceed 10000 (100%)")
+  }
   return {
     decimals,
     startTimestamp: start,
@@ -71,8 +77,8 @@ export function validateConfig(type: string, raw: unknown): Json {
     cliffSeconds,
     releaseIntervalSecs: c.releaseIntervalSecs,
     timelockSeconds: nonNegInt(c.timelockSeconds, "timelockSeconds"),
-    initialUnlockBps: bps(c.initialUnlockBps, "initialUnlockBps"),
-    cliffAmountBps: bps(c.cliffAmountBps, "cliffAmountBps"),
+    initialUnlockBps,
+    cliffAmountBps,
     isRevocable: bool(c.isRevocable, "isRevocable"),
   }
 }

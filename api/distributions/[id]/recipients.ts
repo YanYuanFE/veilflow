@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm"
 import { db } from "../../_db"
 import { distributions, recipients } from "../../_schema"
 import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress } from "../../_http"
+import { requireSession } from "../../_auth"
 
 const HEX_RE = /^0x[0-9a-fA-F]+$/
 
@@ -20,15 +21,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// GET ?recipient=0x.. → just that recipient's artifact(s) (the claim page).
-// Without it → all artifacts for the distribution (the issuer's dashboard).
+// GET ?recipient=0x.. → that recipient's artifact(s) for the public claim page. No session:
+// the amount is an FHE ciphertext gated on-chain by ACL, and the claim link is public by design.
+// Without it → the full recipient list (issuer dashboard) — batch data, kept owner-only.
 async function list(distributionId: string, req: VercelRequest, res: VercelResponse) {
   const { recipient } = req.query
-  const where =
-    typeof recipient === "string"
-      ? and(eq(recipients.distributionId, distributionId), eq(recipients.recipient, normalizeAddress(recipient, "recipient")))
-      : eq(recipients.distributionId, distributionId)
-  const rows = await db.select().from(recipients).where(where).orderBy(desc(recipients.createdAt))
+  if (typeof recipient === "string") {
+    const addr = normalizeAddress(recipient, "recipient")
+    const rows = await db
+      .select()
+      .from(recipients)
+      .where(and(eq(recipients.distributionId, distributionId), eq(recipients.recipient, addr)))
+      .orderBy(desc(recipients.createdAt))
+    return res.status(200).json(rows)
+  }
+
+  const [parent] = await db
+    .select({ creator: distributions.creator })
+    .from(distributions)
+    .where(eq(distributions.id, distributionId))
+    .limit(1)
+  if (!parent) return bad(res, "Distribution not found", 404)
+  if (requireSession(req) !== parent.creator) throw new HttpError(403, "Not your distribution")
+  const rows = await db
+    .select()
+    .from(recipients)
+    .where(eq(recipients.distributionId, distributionId))
+    .orderBy(desc(recipients.createdAt))
   return res.status(200).json(rows)
 }
 
@@ -36,11 +55,12 @@ async function list(distributionId: string, req: VercelRequest, res: VercelRespo
 // encrypted handle, its KMS proof, and the EIP-712 signature — never a plaintext amount.
 async function add(distributionId: string, req: VercelRequest, res: VercelResponse) {
   const [parent] = await db
-    .select({ id: distributions.id })
+    .select({ id: distributions.id, creator: distributions.creator })
     .from(distributions)
     .where(eq(distributions.id, distributionId))
     .limit(1)
   if (!parent) return bad(res, "Distribution not found", 404)
+  if (requireSession(req) !== parent.creator) throw new HttpError(403, "Not your distribution")
 
   const b = (req.body ?? {}) as Record<string, unknown>
   const recipient = normalizeAddress(b.recipient, "recipient")

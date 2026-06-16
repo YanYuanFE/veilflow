@@ -3,6 +3,7 @@ import { desc, eq, inArray } from "drizzle-orm"
 import { db } from "../_db"
 import { distributions, distributionType, recipients } from "../_schema"
 import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
+import { requireSession } from "../_auth"
 import { validateConfig } from "../_config"
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/
@@ -46,10 +47,13 @@ async function list(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(rows)
   }
   if (typeof creator !== "string") return bad(res, "creator, slug or recipient query param required")
+  // Owner-scoped: you can only list your own distributions.
+  const want = normalizeAddress(creator, "creator")
+  if (requireSession(req) !== want) throw new HttpError(403, "You can only list your own distributions")
   const rows = await db
     .select()
     .from(distributions)
-    .where(eq(distributions.creator, normalizeAddress(creator, "creator")))
+    .where(eq(distributions.creator, want))
     .orderBy(desc(distributions.createdAt))
   return res.status(200).json(rows)
 }
@@ -67,7 +71,7 @@ async function create(req: VercelRequest, res: VercelResponse) {
     throw new HttpError(400, `type must be one of ${TYPES.join(", ")}`)
   }
 
-  const creator = normalizeAddress(b.creator, "creator")
+  const creator = requireSession(req) // owner is the signed-in wallet, not a client-supplied field
   const token = requireAddress(b.token, "token") // checksummed; chain expects checksum
   const chainId = typeof b.chainId === "number" ? b.chainId : 11_155_111
   const config = validateConfig(b.type as string, b.config)

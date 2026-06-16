@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { desc, eq } from "drizzle-orm"
 import { db } from "../_db"
-import { disclosures } from "../_schema"
+import { disclosures, distributions } from "../_schema"
 import { bad, HttpError, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
+import { requireSession } from "../_auth"
 
 const VID_RE = /^0x[0-9a-fA-F]{64}$/
 
@@ -29,8 +30,11 @@ async function list(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json(rows)
 }
 
-// POST -> record a grant after the on-chain discloseToParty succeeds.
+// POST -> record a grant after the on-chain discloseToParty succeeds, so the auditor can
+// reverse-look-up what was disclosed to them. The chain enforces the real ACL; this only
+// indexes it. Authorize the writer so nobody can forge entries into someone else's lookup.
 async function create(req: VercelRequest, res: VercelResponse) {
+  const session = requireSession(req)
   const b = (req.body ?? {}) as Record<string, unknown>
   const manager = requireAddress(b.manager, "manager")
   const party = normalizeAddress(b.party, "party")
@@ -39,11 +43,24 @@ async function create(req: VercelRequest, res: VercelResponse) {
   if (!VID_RE.test(vestingId)) throw new HttpError(400, "vestingId must be a 32-byte hex")
   const disclosureType = typeof b.disclosureType === "number" ? b.disclosureType : NaN
   if (!Number.isInteger(disclosureType)) throw new HttpError(400, "disclosureType must be an integer")
-  const distributionId = typeof b.distributionId === "string" ? b.distributionId : null
+
+  // The vesting manager IS a distribution's contractAddress. Bind to it and authorize: a
+  // disclosure is recorded by the issuer (admin batch disclose) or the vesting holder
+  // disclosing their own figure (recipient === caller). distributionId comes from this
+  // lookup, never the client.
+  const [dist] = await db
+    .select({ id: distributions.id, creator: distributions.creator })
+    .from(distributions)
+    .where(eq(distributions.contractAddress, manager))
+    .limit(1)
+  if (!dist) throw new HttpError(404, "No distribution found for this manager")
+  if (session !== dist.creator && session !== recipient) {
+    throw new HttpError(403, "Not authorized to record this disclosure")
+  }
 
   const [row] = await db
     .insert(disclosures)
-    .values({ manager, party, recipient, vestingId, disclosureType, distributionId })
+    .values({ manager, party, recipient, vestingId, disclosureType, distributionId: dist.id })
     .returning()
   return res.status(201).json(row)
 }

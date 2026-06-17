@@ -127,15 +127,15 @@ export function Create() {
     <div className="space-y-10">
       <header className="space-y-2">
         <Kicker>Create</Kicker>
-        <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-tight text-foreground">New distribution</h1>
-        <p className="font-serif text-muted-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">New distribution</h1>
+        <p className="font-sans text-muted-foreground">
           Choose an instrument, name it, and point it at a confidential token. Amounts are encrypted in your browser.
         </p>
       </header>
 
       {/* Step 1 — instrument */}
       <section className="space-y-4">
-        <Kicker>№ 01 · Choose an instrument</Kicker>
+        <Kicker>01 / Choose an instrument</Kicker>
         <div className="grid gap-3 sm:grid-cols-3">
           {TYPES.map((t, i) => (
             <button
@@ -151,7 +151,7 @@ export function Create() {
               )}
             >
               <div className="flex items-center justify-between">
-                <Folio>№ 0{i + 1}</Folio>
+                <Folio>0{i + 1}</Folio>
                 <span
                   className={cn(
                     "size-2 rounded-full transition-colors",
@@ -169,7 +169,7 @@ export function Create() {
 
       {/* Step 2 — details */}
       <section className={cn("space-y-4", !type && "opacity-50")} aria-disabled={!type}>
-        <Kicker>№ 02 · Details</Kicker>
+        <Kicker>02 / Details</Kicker>
         <div className="space-y-5 rounded-md border border-border bg-card p-6">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>

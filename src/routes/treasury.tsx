@@ -34,8 +34,8 @@ export function Treasury() {
     <div className="mx-auto max-w-xl space-y-8">
       <header className="space-y-2">
         <Kicker>Treasury</Kicker>
-        <h1 className="font-display text-[clamp(2rem,4.5vw,2.85rem)] leading-tight text-foreground">Wrap &amp; Unwrap</h1>
-        <p className="font-serif text-[1.0625rem] leading-relaxed text-muted-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">Wrap &amp; Unwrap</h1>
+        <p className="font-sans text-[1.0625rem] leading-relaxed text-muted-foreground">
           Move tokens between their public ERC-20 and confidential ERC-7984 forms — amounts stay encrypted on-chain.
         </p>
       </header>
@@ -99,7 +99,7 @@ function WrapPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="font-serif text-muted-foreground">
+      <p className="font-sans text-muted-foreground">
         Shield a public ERC-20 into its confidential ERC-7984 token. Amounts become encrypted on-chain.
       </p>
       <div className="space-y-5 rounded-md border border-border bg-card p-6">
@@ -237,7 +237,7 @@ function UnwrapPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="font-serif text-muted-foreground">
+      <p className="font-sans text-muted-foreground">
         Unshield a confidential ERC-7984 token back into its public ERC-20. Runs the unwrap and finalize steps for you.
       </p>
       <div className="space-y-5 rounded-md border border-border bg-card p-6">

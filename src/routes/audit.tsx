@@ -108,8 +108,8 @@ export function Audit() {
     <div className="mx-auto max-w-xl space-y-8">
       <header className="space-y-2">
         <Kicker>Compliance · Auditor view</Kicker>
-        <h1 className="font-display text-[clamp(2rem,4.5vw,2.85rem)] leading-tight text-foreground">Auditor view</h1>
-        <p className="font-serif text-[1.0625rem] leading-relaxed text-muted-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">Auditor view</h1>
+        <p className="font-sans text-[1.0625rem] leading-relaxed text-muted-foreground">
           Read one encrypted vesting figure you were granted access to. Connect the wallet the issuer disclosed to — no
           one else can lift the veil.
         </p>

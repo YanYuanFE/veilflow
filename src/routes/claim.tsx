@@ -26,7 +26,9 @@ import { Button } from "@/components/ui/button"
 import { Redaction } from "@/components/ui/redaction"
 import { StatusBadge } from "@/components/status-badge"
 import { VestingActionsDialog, AcceptIncomingTransfer } from "@/components/vesting-actions"
+import { VestingTimeline } from "@/components/vesting-timeline"
 import { Kicker, Folio, Notice } from "@/components/editorial"
+import { Loading } from "@/components/spinner"
 import { getDistributionBySlug, listRecipients, type Distribution } from "@/lib/api"
 import { useTokenMeta } from "@/lib/tokens"
 import { shortAddr, fmtTime } from "@/lib/format"
@@ -80,7 +82,7 @@ export function Claim() {
   if (distQ.isLoading)
     return (
       <ClaimFrame>
-        <Kicker>Loading the statement…</Kicker>
+        <Loading label="Loading the statement…" className="mx-auto max-w-2xl" />
       </ClaimFrame>
     )
   if (distQ.error)
@@ -109,7 +111,7 @@ export function Claim() {
             <span className="size-1.5 rounded-full bg-seal" aria-hidden />
             <Kicker>Confidential claim · {d.type}</Kicker>
           </span>
-          <h1 className="font-display text-[clamp(2.2rem,5vw,3.25rem)] leading-[1.04] text-foreground">
+          <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">
             {theme.title ?? d.name}
           </h1>
           <p className="mx-auto max-w-[46ch] text-[1.0625rem] leading-relaxed text-muted-foreground">
@@ -121,8 +123,16 @@ export function Claim() {
           className="claim-card claim-reveal mx-auto max-w-2xl overflow-hidden rounded-2xl border border-border bg-card"
           style={{ animationDelay: "0.12s" }}
         >
-          {/* Claim action */}
+          {/* Header meta + token symbol + claim action */}
           <div className="px-6 py-8 text-center sm:px-8 sm:py-10">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+              {(start || end) && <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>}
+              <StatusBadge status={d.status} />
+            </div>
+            <p className="mt-4 font-display text-[clamp(1.75rem,5vw,2.5rem)] leading-none tracking-tight text-foreground">
+              {meta.symbol ?? shortAddr(d.token)}
+            </p>
+            <div className="mt-7">
             {d.type === "disperse" ? (
               <div className="space-y-2">
                 <Kicker>Direct distribution</Kicker>
@@ -168,37 +178,25 @@ export function Claim() {
             ) : (
               <VestingClaimPanel d={d} decimals={decimals} symbol={meta.symbol} startsIn={notStarted ? start! - now : null} />
             )}
-          </div>
-
-          {/* Distribution details */}
-          <div className="border-t border-border px-6 py-6 sm:px-8">
-            <Kicker>Distribution details</Kicker>
-            <dl className="mt-4 space-y-2.5 text-sm">
-              <DetailRow label="Token" value={meta.symbol ?? shortAddr(d.token)} />
-              <DetailRow label="Type" value={<span className="capitalize">{d.type}</span>} />
-              {(start || end) && (
-                <DetailRow label={d.type === "vesting" ? "Vesting" : "Window"} value={fmtRange(start, end)} />
-              )}
-              {d.contractAddress && (
-                <DetailRow
-                  label={d.type === "vesting" ? "Manager" : "Pool"}
-                  value={<span className="font-mono text-xs">{shortAddr(d.contractAddress)}</span>}
-                />
-              )}
-              <DetailRow label="Status" value={<StatusBadge status={d.status} />} />
-            </dl>
-          </div>
-
-          {/* Sealed assurance */}
-          <div className="border-t border-border px-6 py-6 sm:px-8">
-            <span className="inline-flex items-center gap-2">
-              <Lock className="size-3.5 text-muted-foreground" aria-hidden />
-              <Kicker>Sealed end-to-end</Kicker>
-            </span>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Your amount is encrypted on-chain and never broadcast in plaintext. Only your wallet can decrypt it.
+            </div>
+            <p className="mt-7 flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <Lock className="size-3 shrink-0" aria-hidden />
+              Encrypted on-chain — only your wallet can decrypt it.
             </p>
           </div>
+
+          {/* Vesting unlock schedule — public shape, sealed amounts (bottom) */}
+          {d.type === "vesting" && start != null && end != null && (
+            <div className="border-t border-border px-6 py-6 sm:px-8">
+              <VestingTimeline
+                start={start}
+                end={end}
+                cliffSeconds={typeof d.config.cliffSeconds === "number" ? d.config.cliffSeconds : 0}
+                initialUnlockBps={typeof d.config.initialUnlockBps === "number" ? d.config.initialUnlockBps : 0}
+                cliffAmountBps={typeof d.config.cliffAmountBps === "number" ? d.config.cliffAmountBps : 0}
+              />
+            </div>
+          )}
         </div>
       </div>
     </ClaimFrame>
@@ -219,7 +217,7 @@ function ClaimFrame({ theme, brandName, children }: { theme?: DistributionTheme;
       } as CSSProperties)
     : undefined
   return (
-    <div className={cn("claim-page geist-type flex min-h-svh flex-col bg-background text-foreground", theme?.mode === "dark" && "dark")} style={style}>
+    <div className={cn("claim-page flex min-h-svh flex-col bg-background text-foreground", theme?.mode === "dark" && "dark")} style={style}>
       <div className="h-[2px] w-full bg-seal" />
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3.5">
@@ -607,16 +605,6 @@ function AllocationRow({
           Visible to you only
         </span>
       )}
-    </div>
-  )
-}
-
-function DetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="claim-detail">
-      <dt className="text-muted-foreground">{label}</dt>
-      <span className="leader" aria-hidden />
-      <dd className="text-right font-medium text-foreground">{value}</dd>
     </div>
   )
 }

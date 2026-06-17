@@ -21,8 +21,8 @@ export function Claims() {
     <div className="mx-auto max-w-3xl space-y-10">
       <header className="space-y-2">
         <Kicker>Recipient</Kicker>
-        <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-tight text-foreground">Your claims</h1>
-        <p className="font-serif text-muted-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">Your claims</h1>
+        <p className="font-sans text-muted-foreground">
           Confidential allocations addressed to this wallet — only you can read the amounts.
         </p>
       </header>

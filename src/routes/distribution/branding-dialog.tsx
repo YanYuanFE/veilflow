@@ -142,7 +142,7 @@ export function BrandingDialog({ d }: { d: Distribution }) {
               {(title || description) && (
                 <div className="mb-3 space-y-1">
                   {title && <p className="font-display text-base text-foreground">{title}</p>}
-                  {description && <p className="font-serif text-sm text-muted-foreground">{description}</p>}
+                  {description && <p className="font-sans text-sm text-muted-foreground">{description}</p>}
                 </div>
               )}
               <div className="flex items-center justify-between gap-3 rounded-sm border border-border bg-card px-3 py-2">

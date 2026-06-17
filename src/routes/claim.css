@@ -82,25 +82,6 @@
   }
 }
 
-/* Printed-statement leader dots between a label and its value. */
-.claim-detail {
-  display: flex;
-  align-items: baseline;
-  gap: 0.625rem;
-}
-.claim-detail > dt {
-  flex: none;
-}
-.claim-detail > .leader {
-  flex: 1 1 auto;
-  min-width: 1.5rem;
-  border-bottom: 1px dotted color-mix(in oklch, var(--foreground) 24%, transparent);
-  transform: translateY(-0.3em);
-}
-.claim-detail > dd {
-  flex: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .claim-reveal {
     animation: none;

@@ -12,21 +12,9 @@ const NAV_LINKS = [
 ]
 
 const BADGES = [
-  {
-    img: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=64&q=80",
-    name: "Airdrop Participant",
-    data: "ENCRYPTED: ****.84",
-  },
-  {
-    img: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=64&q=80",
-    name: "Vesting Lead",
-    data: "LOCKED: 0x4f...21",
-  },
-  {
-    img: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=64&q=80",
-    name: "Compliance Node",
-    data: "VERIFIED: ERC-7984",
-  },
+  { name: "Airdrop Participant", data: "ENCRYPTED: ****.84" },
+  { name: "Vesting Lead", data: "LOCKED: 0x4f...21" },
+  { name: "Compliance Node", data: "VERIFIED: ERC-7984" },
 ]
 
 const FEATURES = [
@@ -116,112 +104,8 @@ const ROWS = [
 ]
 
 export function VariantLanding() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  // Floating cube field — the design's three.js background, lazy-loaded.
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-
-    let raf = 0
-    let disposed = false
-    let cleanup = () => {}
-
-    import("three").then((THREE) => {
-      if (disposed) return
-
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-      renderer.setSize(window.innerWidth, window.innerHeight)
-      renderer.setPixelRatio(window.devicePixelRatio)
-
-      const scene = new THREE.Scene()
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-      camera.position.z = 5
-
-      const group = new THREE.Group()
-      const geometry = new THREE.BoxGeometry(0.15, 0.15, 0.15)
-      const cubeCount = 120
-      const cubes: InstanceType<typeof THREE.Mesh>[] = []
-      const materials: InstanceType<typeof THREE.MeshPhongMaterial>[] = []
-
-      for (let i = 0; i < cubeCount; i++) {
-        const material = new THREE.MeshPhongMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0.2,
-          specular: 0xffd208,
-          shininess: 100,
-        })
-        materials.push(material)
-        const cube = new THREE.Mesh(geometry, material)
-        cube.position.x = (Math.random() - 0.5) * 15
-        cube.position.y = (Math.random() - 0.5) * 8
-        cube.position.z = (Math.random() - 0.5) * 5
-        cube.rotation.x = Math.random() * Math.PI
-        cube.rotation.y = Math.random() * Math.PI
-        cubes.push(cube)
-        group.add(cube)
-      }
-      scene.add(group)
-
-      scene.add(new THREE.AmbientLight(0x404040, 2))
-      const pointLight = new THREE.PointLight(0xffd208, 1, 20)
-      pointLight.position.set(2, 2, 2)
-      scene.add(pointLight)
-      const fillLight = new THREE.PointLight(0xffd208, 0.5, 10)
-      fillLight.position.set(-5, -2, 3)
-      scene.add(fillLight)
-
-      let mouseX = 0
-      let mouseY = 0
-      const onMove = (e: MouseEvent) => {
-        mouseX = e.clientX / window.innerWidth - 0.5
-        mouseY = e.clientY / window.innerHeight - 0.5
-      }
-      const onResize = () => {
-        camera.aspect = window.innerWidth / window.innerHeight
-        camera.updateProjectionMatrix()
-        renderer.setSize(window.innerWidth, window.innerHeight)
-      }
-      window.addEventListener("mousemove", onMove)
-      window.addEventListener("resize", onResize)
-
-      const animate = () => {
-        raf = requestAnimationFrame(animate)
-        group.rotation.y += 0.001
-        group.position.x += (mouseX * 0.5 - group.position.x) * 0.05
-        group.position.y += (-mouseY * 0.5 - group.position.y) * 0.05
-        const t = performance.now() * 0.001
-        cubes.forEach((cube, i) => {
-          cube.rotation.x += 0.005
-          cube.rotation.y += 0.005
-          cube.scale.setScalar(1 + Math.sin(t + i) * 0.1)
-        })
-        renderer.render(scene, camera)
-      }
-      animate()
-
-      cleanup = () => {
-        cancelAnimationFrame(raf)
-        window.removeEventListener("mousemove", onMove)
-        window.removeEventListener("resize", onResize)
-        geometry.dispose()
-        materials.forEach((m) => m.dispose())
-        renderer.dispose()
-      }
-    })
-
-    return () => {
-      disposed = true
-      cleanup()
-    }
-  }, [])
-
   return (
     <div className="vl">
-      <canvas ref={canvasRef} className="vl-bg-canvas" />
-
       <nav className="vl-nav">
         <Link to="/" className="vl-logo">
           <Logomark className="vl-logo-mark" />
@@ -282,18 +166,22 @@ export function VariantLanding() {
             </Link>
             <Link to="/docs" className="vl-btn-secondary">
               <div className="vl-play-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M5 3l14 9-14 9V3z" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="M9 13h6M9 17h4" />
                 </svg>
               </div>
-              How it works
+              Read the docs
             </Link>
           </div>
 
           <div className="vl-floating-badges">
             {BADGES.map((b) => (
               <div className="vl-badge" key={b.name}>
-                <img src={b.img} alt={b.name} />
+                <span className="vl-badge-avatar" aria-hidden>
+                  {b.name.charAt(0)}
+                </span>
                 <div className="vl-badge-info">
                   <span className="vl-badge-name">{b.name}</span>
                   <span className="vl-badge-data">{b.data}</span>
@@ -321,7 +209,7 @@ export function VariantLanding() {
             {INSTRUMENTS.map((it) => (
               <article className="vl-instrument-card" key={it.id}>
                 <div className="vl-instrument-top">
-                  <span className="vl-instrument-index">№ {it.index}</span>
+                  <span className="vl-instrument-index">{it.index}</span>
                   {it.icon}
                 </div>
                 <h3>{it.title}</h3>

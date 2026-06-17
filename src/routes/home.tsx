@@ -119,7 +119,7 @@ export function Home() {
               </h1>
             </Reveal>
             <Reveal delay={180}>
-              <p className="font-serif mt-7 max-w-[52ch] text-xl leading-relaxed text-muted-foreground">
+              <p className="font-sans mt-7 max-w-[52ch] text-xl leading-relaxed text-muted-foreground">
                 VeilFlow turns any ERC-20 into a confidential ERC-7984 token and distributes it — airdrops, vesting,
                 direct payouts — with every amount encrypted end-to-end. The figures are sealed on-chain; the plaintext
                 never leaves your browser.
@@ -161,7 +161,7 @@ export function Home() {
         </Reveal>
         <div className="max-w-[60ch] space-y-6">
           <Reveal>
-            <p className="font-serif text-[clamp(1.375rem,2.4vw,1.75rem)] leading-snug text-foreground">
+            <p className="font-sans text-[clamp(1.375rem,2.4vw,1.75rem)] leading-snug text-foreground">
               A single console for any shape of confidential distribution. An issuer connects a wallet, picks an
               instrument, and points it at a confidential token — while the amounts stay sealed on-chain.
             </p>
@@ -183,7 +183,7 @@ export function Home() {
         </Reveal>
         <div className="space-y-8">
           <Reveal>
-            <p className="font-serif max-w-[34ch] text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.12] text-foreground">
+            <p className="font-sans max-w-[34ch] text-[clamp(1.5rem,3vw,2.25rem)] leading-[1.12] text-foreground">
               Public chains leak amounts. <Highlight>Privacy is the default</Highlight> a treasury actually needs.
             </p>
           </Reveal>
@@ -268,7 +268,7 @@ export function Home() {
         <Reveal>
           <div className="max-w-[58ch] space-y-4">
             <Kicker>How it works · the trust boundary</Kicker>
-            <p className="font-serif text-[clamp(1.375rem,2.4vw,1.75rem)] leading-snug text-foreground">
+            <p className="font-sans text-[clamp(1.375rem,2.4vw,1.75rem)] leading-snug text-foreground">
               Three layers hold three different things. Only one ever touches a plaintext amount — and it's the one you
               control.
             </p>
@@ -309,7 +309,7 @@ export function Home() {
         </Reveal>
         <Reveal delay={100}>
           <blockquote className="max-w-[56rem]">
-            <p className="font-display text-[clamp(2rem,4.4vw,3.5rem)] leading-[1.08] text-foreground">
+            <p className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.08] text-foreground">
               Encryption happens in your browser. The backend never sees a plaintext amount —{" "}
               <Highlight>only ciphertext</Highlight>, addresses, and signatures.
             </p>
@@ -353,7 +353,7 @@ export function Home() {
           <Reveal delay={180}>
             <div className="space-y-4">
               <Kicker className="tracking-[0.12em]">Built for</Kicker>
-              <p className="font-serif max-w-[30ch] text-lg leading-snug text-foreground">
+              <p className="font-sans max-w-[30ch] text-lg leading-snug text-foreground">
                 Zama Developer Program — Mainnet Season 3 · TokenOps Special Bounty
               </p>
               <p className="max-w-[40ch] text-sm leading-relaxed text-muted-foreground">
@@ -374,7 +374,7 @@ export function Home() {
           />
           <div className="relative">
             <Kicker>Mainnet Season 3</Kicker>
-            <h2 className="font-display mx-auto mt-4 max-w-[18ch] text-[clamp(2rem,4.2vw,3.25rem)] leading-[1.04] text-foreground">
+            <h2 className="font-display mx-auto mt-4 max-w-[18ch] text-[clamp(2.5rem,5vw,3.5rem)] leading-[1.04] text-foreground">
               Issue your first <Highlight>confidential</Highlight> distribution
             </h2>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">

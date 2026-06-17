@@ -6,7 +6,7 @@ export function Kicker({ children, className }: { children: ReactNode; className
   return (
     <span
       className={cn(
-        "font-sans text-[0.6875rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground",
+        "font-mono text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-muted-foreground",
         className,
       )}
     >

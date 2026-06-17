@@ -17,7 +17,7 @@ const NAV: { to: string; label: string; aliases?: string[] }[] = [
 export function Layout() {
   const { pathname } = useLocation()
   return (
-    <div className="console-shell geist-type flex min-h-svh flex-col bg-background">
+    <div className="console-shell flex min-h-svh flex-col bg-background">
       {/* Letterhead + nav — pinned, lifts over content on scroll */}
       <div className="sticky top-0 z-40">
         <div className="h-[2px] w-full bg-seal" />

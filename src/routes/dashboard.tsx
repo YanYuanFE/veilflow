@@ -25,10 +25,10 @@ export function Dashboard() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <Kicker>The console</Kicker>
-          <h1 className="font-display text-[clamp(2rem,4vw,2.75rem)] leading-tight text-foreground">
+          <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">
             Your distributions
           </h1>
-          <p className="font-serif text-muted-foreground">Everything you've issued from this wallet — amounts stay sealed.</p>
+          <p className="font-sans text-muted-foreground">Everything you've issued from this wallet — amounts stay sealed.</p>
         </div>
         {isConnected && (
           <Button asChild>

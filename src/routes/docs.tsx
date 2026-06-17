@@ -27,7 +27,7 @@ export function Docs() {
     <div className="mx-auto max-w-5xl">
       <header className="max-w-[60ch] space-y-4">
         <Kicker>Documentation</Kicker>
-        <h1 className="font-display text-[clamp(2rem,4.5vw,3rem)] leading-tight text-foreground">
+        <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">
           How VeilFlow works
         </h1>
         <p className="text-lg leading-relaxed text-muted-foreground">

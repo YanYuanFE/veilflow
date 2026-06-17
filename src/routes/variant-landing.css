@@ -4,13 +4,14 @@
    Geist/Geist Mono @font-face are loaded globally in index.css. */
 
 .vl {
-  --vl-bg: #f5f5f5;
-  --vl-fg: #0a0a0a;
-  --vl-muted: #666666;
-  --vl-border: rgba(0, 0, 0, 0.08);
-  --vl-glass: rgba(0, 0, 0, 0.03);
-  --vl-gold: #ffd208;
+  --vl-bg: #fbf9f2;
+  --vl-fg: #262019;
+  --vl-muted: #6f675a;
+  --vl-border: rgba(38, 32, 25, 0.1);
+  --vl-glass: rgba(38, 32, 25, 0.035);
+  --vl-gold: #f4c61a;
   --vl-font-main: "Geist Variable", sans-serif;
+  --vl-font-display: "General Sans", "Geist Variable", sans-serif;
   --vl-font-mono: "Geist Mono Variable", monospace;
 
   /* Map the shared Logomark's tokens onto this page's palette */
@@ -25,6 +26,15 @@
   line-height: 1.5;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+/* General Sans on display headings — the geometric voice (matches the console). */
+.vl-logo,
+.vl-hero h1,
+.vl-section-header h2,
+.vl-instrument-card h3,
+.vl-feature-card h3 {
+  font-family: var(--vl-font-display);
 }
 
 .vl *,
@@ -52,7 +62,7 @@
   justify-content: space-between;
   align-items: center;
   z-index: 100;
-  background: linear-gradient(to bottom, rgba(245, 245, 245, 0.8), transparent);
+  background: linear-gradient(to bottom, rgba(251, 249, 242, 0.85), transparent);
   backdrop-filter: blur(10px);
 }
 
@@ -114,11 +124,12 @@
 
 /* Hero */
 .vl-hero {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0 10vw;
+  /* top padding clears the fixed nav so the headline isn't crowding the header */
+  padding: 7rem 10vw 4rem;
   position: relative;
   z-index: 1;
 }
@@ -138,7 +149,6 @@
   height: 6px;
   background: var(--vl-gold);
   border-radius: 50%;
-  box-shadow: 0 0 10px var(--vl-gold);
 }
 
 .vl-hero h1 {
@@ -164,8 +174,8 @@
 }
 
 .vl-btn-primary {
-  background: #0a0a0a;
-  color: #ffffff;
+  background: var(--vl-fg);
+  color: var(--vl-bg);
   padding: 18px 40px;
   border-radius: 100px;
   font-weight: 700;
@@ -178,8 +188,8 @@
     box-shadow 0.3s;
 }
 .vl-btn-primary:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -18px rgba(38, 32, 25, 0.3);
 }
 
 .vl-btn-secondary {
@@ -244,12 +254,19 @@
   }
 }
 
-.vl-badge img {
+.vl-badge-avatar {
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   border-radius: 50%;
-  background: #eee;
-  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--vl-gold) 22%, transparent);
+  color: var(--vl-fg);
+  font-family: var(--vl-font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .vl-badge-info {
@@ -271,7 +288,6 @@
   height: 8px;
   background: var(--vl-gold);
   border-radius: 50%;
-  box-shadow: 0 0 10px var(--vl-gold);
 }
 
 /* Scroll indicator */
@@ -366,7 +382,7 @@
   border: 1px solid var(--vl-border);
   border-radius: clamp(16px, 2vw, 24px);
   padding: clamp(28px, 3vw, 40px);
-  background: #ffffff;
+  background: #fffdf6;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -374,9 +390,8 @@
   position: relative;
 }
 .vl-instrument-card:hover {
-  border-color: rgba(0, 0, 0, 0.2);
-  transform: translateY(-4px);
-  box-shadow: 0 24px 48px -20px rgba(0, 0, 0, 0.12);
+  border-color: rgba(38, 32, 25, 0.28);
+  transform: translateY(-3px);
 }
 .vl-instrument-top {
   display: flex;
@@ -439,14 +454,14 @@
   border: 1px solid var(--vl-border);
   border-radius: clamp(16px, 2vw, 24px);
   padding: clamp(24px, 3vw, 40px);
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.03), transparent);
+  background: var(--vl-glass);
   transition: 0.4s;
   position: relative;
   overflow: hidden;
 }
 .vl-feature-card:hover {
-  border-color: rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.05), transparent);
+  border-color: rgba(38, 32, 25, 0.28);
+  background: rgba(38, 32, 25, 0.05);
 }
 .vl-feature-card h3 {
   font-size: 1.4rem;
@@ -464,13 +479,13 @@
 
 /* Console preview */
 .vl-console {
-  background: #ffffff;
+  background: #fffdf6;
   border: 1px solid var(--vl-border);
   border-radius: 12px;
   width: 100%;
   margin-top: 60px;
   overflow: hidden;
-  box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 30px 70px -45px rgba(38, 32, 25, 0.25);
 }
 .vl-console-header {
   background: rgba(0, 0, 0, 0.03);

@@ -22,6 +22,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Kicker } from "@/components/editorial"
 import { shortAddr, fmtTime } from "@/lib/format"
 import { recordDisclosure } from "@/lib/api"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 
 function err(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -59,6 +60,7 @@ export function VestingActionsDialog({
   const direct = useDirectVestingTransfer({ address: manager })
   const cancel = useCancelVestingTransfer({ address: manager })
   const pendingQ = usePendingVestingTransfer({ address: manager, vestingId })
+  const confirm = useConfirmTx()
 
   const [pcAmount, setPcAmount] = useState("")
   const [splitNum, setSplitNum] = useState("1")
@@ -82,11 +84,12 @@ export function VestingActionsDialog({
   const onPartial = async () => {
     if (!pcAmountWei || !fee) return
     try {
-      await partial.mutateAsync(
+      const hash = await partial.mutateAsync(
         fee?.feeType === FeeType.Gas
           ? { vestingId, amount: pcAmountWei, value: fee.fee }
           : { vestingId, amount: pcAmountWei },
       )
+      await confirm(hash)
       setPcAmount("")
       toast.success("Partial amount claimed")
     } catch (e) {
@@ -117,7 +120,8 @@ export function VestingActionsDialog({
     // Require a positive accept window — a 0-second window can never be accepted.
     if (!isAddress(xferTo) || !(Number(xferDays) > 0)) return
     try {
-      await initiate.mutateAsync({ vestingId, newRecipient: xferTo as Address, transferDurationSeconds: Math.round(Number(xferDays) * 86_400) })
+      const hash = await initiate.mutateAsync({ vestingId, newRecipient: xferTo as Address, transferDurationSeconds: Math.round(Number(xferDays) * 86_400) })
+      await confirm(hash)
       await pendingQ.refetch()
       setXferTo("")
       toast.success("Transfer initiated — the new recipient must accept")
@@ -129,7 +133,8 @@ export function VestingActionsDialog({
   const onDirect = async () => {
     if (!isAddress(xferTo)) return
     try {
-      await direct.mutateAsync({ vestingId, newOwner: xferTo as Address })
+      const hash = await direct.mutateAsync({ vestingId, newOwner: xferTo as Address })
+      await confirm(hash)
       setXferTo("")
       toast.success("Vesting transferred")
     } catch (e) {
@@ -139,7 +144,8 @@ export function VestingActionsDialog({
 
   const onCancel = async () => {
     try {
-      await cancel.mutateAsync({ vestingId })
+      const hash = await cancel.mutateAsync({ vestingId })
+      await confirm(hash)
       await pendingQ.refetch()
       toast.success("Pending transfer cancelled")
     } catch (e) {
@@ -327,13 +333,15 @@ function DiscloseSection({
  *  your list until accepted, so it's keyed by the vestingId the sender shares). */
 export function AcceptIncomingTransfer({ manager }: { manager: Address }) {
   const accept = useAcceptVestingTransfer({ address: manager })
+  const confirm = useConfirmTx()
   const [vid, setVid] = useState("")
   const valid = /^0x[0-9a-fA-F]{64}$/.test(vid)
 
   const onAccept = async () => {
     if (!valid) return
     try {
-      await accept.mutateAsync({ vestingId: vid as Hex })
+      const hash = await accept.mutateAsync({ vestingId: vid as Hex })
+      await confirm(hash)
       setVid("")
       toast.success("Transfer accepted — the vesting is now yours")
     } catch (e) {

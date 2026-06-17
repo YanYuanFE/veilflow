@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { isAddress, formatUnits, type Address, type Hex } from "viem"
-import { useAccount } from "wagmi"
+import { useAccount, usePublicClient } from "wagmi"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { toast } from "sonner"
 import { useZamaSDK, useConfidentialApprove } from "@zama-fhe/react-sdk"
 import {
@@ -127,6 +128,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
   const decimals = numberConfig(d, "decimals", 6)
   const approve = useConfidentialApprove({ tokenAddress: d.token as Address })
   const batchCreate = useBatchCreateVesting({ address: manager, encryptor: () => sdk.relayer })
+  const confirm = useConfirmTx()
   const maxBatchQ = useManagerMaxBatchSize({ address: manager })
   const recipientsQ = useAllRecipients({ address: manager })
   const now = useNowSeconds()
@@ -183,9 +185,10 @@ export function VestingManageCard({ d }: { d: Distribution }) {
       for (let i = 0; i < batchCount; i++) {
         const chunk = fresh.slice(i * maxBatch, (i + 1) * maxBatch)
         setProgress(batchCount > 1 ? `Creating batch ${i + 1}/${batchCount}…` : "Creating vestings…")
-        await batchCreate.mutateAsync({
+        const hash = await batchCreate.mutateAsync({
           items: chunk.map((e) => ({ params: vestingParams(e.recipient), amount: e.amount })),
         })
+        await confirm(hash)
       }
       await recipientsQ.refetch()
       setInput("")
@@ -320,18 +323,26 @@ export function VestingPauseRow({ d }: { d: Distribution }) {
   const pausedQ = useManagerPaused({ address: manager })
   const pause = usePause({ address: manager })
   const unpause = useUnpause({ address: manager })
+  const publicClient = usePublicClient()
+  const [confirming, setConfirming] = useState(false)
   const isPaused = pausedQ.data === true
   const pausable = pausableQ.data === true
-  const pausing = pause.isPending || unpause.isPending
+  const pausing = pause.isPending || unpause.isPending || confirming
 
   const onTogglePause = async () => {
     try {
-      if (isPaused) await unpause.mutateAsync(undefined)
-      else await pause.mutateAsync(undefined)
+      // mutateAsync resolves on submission (returns the tx hash), so wait for the
+      // receipt to be mined before re-reading status — otherwise we'd toast and
+      // refetch the pause state before the change is on-chain.
+      const hash = isPaused ? await unpause.mutateAsync(undefined) : await pause.mutateAsync(undefined)
+      setConfirming(true)
+      await publicClient?.waitForTransactionReceipt({ hash })
       await pausedQ.refetch()
       toast.success(isPaused ? "Claims resumed" : "Claims & grants paused")
     } catch (e) {
       toast.error(err(e))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -361,6 +372,7 @@ function VestingRevokeCard({ d, recipient }: { d: Distribution; recipient: Addre
   const revokeVestingIds = revokeVestingsQ.data ?? []
   const maxRevokeQ = useManagerMaxRevokeBatchSize({ address: manager })
   const batchRevoke = useBatchRevokeVesting({ address: manager })
+  const confirm = useConfirmTx()
 
   const onRevoke = async () => {
     if (revokeVestingIds.length === 0) return
@@ -368,7 +380,8 @@ function VestingRevokeCard({ d, recipient }: { d: Distribution; recipient: Addre
       // Revoke all of this recipient's vestings, chunked to the manager's cap.
       const max = maxRevokeQ.data && maxRevokeQ.data > 0n ? Number(maxRevokeQ.data) : 50
       for (let i = 0; i < revokeVestingIds.length; i += max) {
-        await batchRevoke.mutateAsync({ vestingIds: revokeVestingIds.slice(i, i + max) })
+        const hash = await batchRevoke.mutateAsync({ vestingIds: revokeVestingIds.slice(i, i + max) })
+        await confirm(hash)
       }
       await revokeVestingsQ.refetch()
       toast.success(`Revoked ${revokeVestingIds.length} vesting${revokeVestingIds.length === 1 ? "" : "s"}`)

@@ -36,6 +36,7 @@ import { RecipientPreview } from "@/components/recipient-preview"
 import { shortAddr, fmtTime } from "@/lib/format"
 import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
 import { useNowSeconds } from "@/lib/use-now"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { patchDistribution, listRecipients, addRecipient, type Distribution, type RecipientArtifact } from "@/lib/api"
 import { FACTORY_SEPOLIA, err, randomSalt } from "./shared"
 
@@ -438,6 +439,7 @@ export function AdminCard({ d }: { d: Distribution }) {
   const revokeRole = useAirdropRevokeRole({ address: airdrop })
   const wOther = useWithdrawOtherToken({ address: airdrop })
   const wOtherConf = useWithdrawOtherConfidentialToken({ address: airdrop })
+  const confirm = useConfirmTx()
 
   const [newEnd, setNewEnd] = useState("")
   const [to, setTo] = useState("")
@@ -463,7 +465,8 @@ export function AdminCard({ d }: { d: Distribution }) {
 
   const onPause = async () => {
     try {
-      await setPaused.mutateAsync({ paused: !isPaused })
+      const hash = await setPaused.mutateAsync({ paused: !isPaused })
+      await confirm(hash)
       await pausedQ.refetch()
       toast.success(isPaused ? "Claims resumed" : "Claims paused")
     } catch (e) {
@@ -473,7 +476,8 @@ export function AdminCard({ d }: { d: Distribution }) {
   const onExtend = async () => {
     if (!extendValid || newEndTs == null) return
     try {
-      await extend.mutateAsync({ newEndTime: newEndTs })
+      const hash = await extend.mutateAsync({ newEndTime: newEndTs })
+      await confirm(hash)
       await endQ.refetch()
       setNewEnd("")
       toast.success("Claim window extended")
@@ -485,7 +489,8 @@ export function AdminCard({ d }: { d: Distribution }) {
     const recipient = (isAddress(to) ? to : address) as Address | undefined
     if (!recipient) return
     try {
-      await withdraw.mutateAsync({ recipient })
+      const hash = await withdraw.mutateAsync({ recipient })
+      await confirm(hash)
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
       setConfirmWithdraw(false)
       toast.success("Withdrew remaining balance")
@@ -498,7 +503,8 @@ export function AdminCard({ d }: { d: Distribution }) {
     if (!recipient) return
     try {
       // Blank amount → 0n, which the contract treats as "withdraw the entire gas-fee balance".
-      await withdrawGas.mutateAsync({ recipient, amount: feeAmount.trim() ? parseEther(feeAmount.trim()) : 0n })
+      const hash = await withdrawGas.mutateAsync({ recipient, amount: feeAmount.trim() ? parseEther(feeAmount.trim()) : 0n })
+      await confirm(hash)
       setFeeAmount("")
       toast.success("Withdrew collected gas fees")
     } catch (e) {
@@ -508,7 +514,8 @@ export function AdminCard({ d }: { d: Distribution }) {
   const onGrantRole = async () => {
     if (!isAddress(roleTarget)) return
     try {
-      await grantRole.mutateAsync({ role: ADMIN_ROLE, accountTarget: roleTarget as Address })
+      const hash = await grantRole.mutateAsync({ role: ADMIN_ROLE, accountTarget: roleTarget as Address })
+      await confirm(hash)
       await hasRoleQ.refetch()
       toast.success("Admin role granted")
     } catch (e) {
@@ -518,7 +525,8 @@ export function AdminCard({ d }: { d: Distribution }) {
   const onRevokeRole = async () => {
     if (!isAddress(roleTarget)) return
     try {
-      await revokeRole.mutateAsync({ role: ADMIN_ROLE, accountTarget: roleTarget as Address })
+      const hash = await revokeRole.mutateAsync({ role: ADMIN_ROLE, accountTarget: roleTarget as Address })
+      await confirm(hash)
       await hasRoleQ.refetch()
       toast.success("Admin role revoked")
     } catch (e) {
@@ -529,8 +537,11 @@ export function AdminCard({ d }: { d: Distribution }) {
     const recipient = (isAddress(rescueTo) ? rescueTo : address) as Address | undefined
     if (!isAddress(rescueToken) || !recipient) return
     try {
-      if (rescueKind === "confidential") await wOtherConf.mutateAsync({ tokenAddress: rescueToken as Address, recipient })
-      else await wOther.mutateAsync({ tokenAddress: rescueToken as Address, recipient })
+      const hash =
+        rescueKind === "confidential"
+          ? await wOtherConf.mutateAsync({ tokenAddress: rescueToken as Address, recipient })
+          : await wOther.mutateAsync({ tokenAddress: rescueToken as Address, recipient })
+      await confirm(hash)
       setRescueToken("")
       toast.success("Tokens rescued")
     } catch (e) {

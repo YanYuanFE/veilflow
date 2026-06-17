@@ -34,6 +34,7 @@ import { Kicker } from "@/components/editorial"
 import { shortAddr } from "@/lib/format"
 import { type Distribution } from "@/lib/api"
 import { err, numberConfig } from "./shared"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 
 type RoleKey =
   | "DEFAULT_ADMIN_ROLE"
@@ -61,6 +62,7 @@ export function VestingRolesCard({ d }: { d: Distribution }) {
   const rolesQ = useRoleConstants({ address: manager })
   const grant = useGrantRole({ address: manager })
   const revoke = useRevokeRole({ address: manager })
+  const confirm = useConfirmTx()
 
   const [roleKey, setRoleKey] = useState<RoleKey>("PAUSER_ROLE")
   const [target, setTarget] = useState("")
@@ -71,7 +73,8 @@ export function VestingRolesCard({ d }: { d: Distribution }) {
   const onGrant = async () => {
     if (!role || !validTarget) return
     try {
-      await grant.mutateAsync({ role, accountTarget: target as Address })
+      const hash = await grant.mutateAsync({ role, accountTarget: target as Address })
+      await confirm(hash)
       await hasRoleQ.refetch()
       toast.success("Role granted")
     } catch (e) {
@@ -81,7 +84,8 @@ export function VestingRolesCard({ d }: { d: Distribution }) {
   const onRevoke = async () => {
     if (!role || !validTarget) return
     try {
-      await revoke.mutateAsync({ role, accountTarget: target as Address })
+      const hash = await revoke.mutateAsync({ role, accountTarget: target as Address })
+      await confirm(hash)
       await hasRoleQ.refetch()
       toast.success("Role revoked")
     } catch (e) {
@@ -151,6 +155,7 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
   const withdrawAdmin = useWithdrawAdmin({ address: manager, encryptor: () => sdk.relayer })
   const withdrawOtherConf = useWithdrawOtherConfidentialToken({ address: manager })
   const withdrawOther = useWithdrawOtherToken({ address: manager })
+  const confirm = useConfirmTx()
 
   // Withdrawable balances: the gas-fee pool is the manager's ETH (public); the surplus
   // pool is the confidential token balance — revealed on demand like any other figure.
@@ -184,8 +189,11 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
   const onCollectFees = async () => {
     if (!feeRecipient || !feeAmount || feeType === undefined) return
     try {
-      if (feeType === FeeType.DistributionToken) await withdrawTokenFee.mutateAsync({ to: feeRecipient, amount: parseUnits(feeAmount, decimals) })
-      else await withdrawGas.mutateAsync({ to: feeRecipient, amount: parseEther(feeAmount) })
+      const hash =
+        feeType === FeeType.DistributionToken
+          ? await withdrawTokenFee.mutateAsync({ to: feeRecipient, amount: parseUnits(feeAmount, decimals) })
+          : await withdrawGas.mutateAsync({ to: feeRecipient, amount: parseEther(feeAmount) })
+      await confirm(hash)
       setFeeAmount("")
       toast.success("Fees withdrawn")
     } catch (e) {
@@ -196,7 +204,8 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
   const onWithdrawSurplus = async () => {
     if (!surplus) return
     try {
-      await withdrawAdmin.mutateAsync({ amount: parseUnits(surplus, decimals) })
+      const hash = await withdrawAdmin.mutateAsync({ amount: parseUnits(surplus, decimals) })
+      await confirm(hash)
       setSurplus("")
       toast.success("Surplus withdrawn to your wallet")
     } catch (e) {
@@ -208,8 +217,11 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
     const to = (isAddress(rescueTo) ? rescueTo : address) as Address | undefined
     if (!isAddress(rescueToken) || !to) return
     try {
-      if (rescueKind === "confidential") await withdrawOtherConf.mutateAsync({ token: rescueToken as Address, to })
-      else await withdrawOther.mutateAsync({ token: rescueToken as Address, to })
+      const hash =
+        rescueKind === "confidential"
+          ? await withdrawOtherConf.mutateAsync({ token: rescueToken as Address, to })
+          : await withdrawOther.mutateAsync({ token: rescueToken as Address, to })
+      await confirm(hash)
       setRescueToken("")
       toast.success("Tokens rescued")
     } catch (e) {
@@ -350,6 +362,7 @@ export function VestingClaimerCard({ d, recipient: lockedRecipient }: { d: Distr
   const feeInfo = useManagerFeeInfo({ address: manager })
   const adminClaim = useAdminClaim({ address: manager })
   const adminPartial = useAdminPartialClaim({ address: manager, encryptor: () => sdk.relayer })
+  const confirm = useConfirmTx()
 
   const [recipientState, setRecipient] = useState("")
   const recipient = lockedRecipient ?? recipientState
@@ -372,13 +385,15 @@ export function VestingClaimerCard({ d, recipient: lockedRecipient }: { d: Distr
       if (amount.trim()) {
         const wei = parseUnits(amount.trim(), decimals)
         if (wei <= 0n) return
-        await adminPartial.mutateAsync(
+        const hash = await adminPartial.mutateAsync(
           fee.feeType === FeeType.Gas ? { vestingId: vid, amount: wei, value: fee.fee } : { vestingId: vid, amount: wei },
         )
+        await confirm(hash)
       } else {
-        await adminClaim.mutateAsync(
+        const hash = await adminClaim.mutateAsync(
           fee.feeType === FeeType.Gas ? { vestingId: vid, feeType: fee.feeType, value: fee.fee } : { vestingId: vid, feeType: fee.feeType },
         )
+        await confirm(hash)
       }
       setAmount("")
       toast.success("Claimed on the recipient's behalf — tokens went to their balance")

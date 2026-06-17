@@ -31,6 +31,7 @@ import { Kicker, Folio, Notice } from "@/components/editorial"
 import { Loading } from "@/components/spinner"
 import { getDistributionBySlug, listRecipients, type Distribution } from "@/lib/api"
 import { useTokenMeta } from "@/lib/tokens"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { shortAddr, fmtTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { parseTheme, readableInk, type DistributionTheme } from "@/lib/theme"
@@ -317,6 +318,7 @@ function AirdropClaimPanel({
 
   const getAmount = useGetClaimAmount({ address: airdrop })
   const claim = useClaim({ address: airdrop })
+  const confirm = useConfirmTx()
   const [viewHandle, setViewHandle] = useState<Hex>()
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: airdrop }] : [] },
@@ -358,7 +360,8 @@ function AirdropClaimPanel({
   const onClaim = async () => {
     if (!encryptedInput || !artifact?.signature) return
     try {
-      await claim.mutateAsync({ encryptedInput, signature: artifact.signature as Hex })
+      const hash = await claim.mutateAsync({ encryptedInput, signature: artifact.signature as Hex })
+      await confirm(hash)
       claimedQ.refetch() // re-read on-chain claimed state
       toast.success("Claimed into your confidential balance")
     } catch (e) {
@@ -488,6 +491,7 @@ function VestingClaimItem({
 }) {
   const getClaimable = useGetClaimableAmount({ address: manager })
   const claim = useVestingClaim({ address: manager })
+  const confirm = useConfirmTx()
   const [viewHandle, setViewHandle] = useState<Hex>()
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: manager }] : [] },
@@ -513,11 +517,12 @@ function VestingClaimItem({
   const onClaim = async () => {
     if (!fee) return
     try {
-      await claim.mutateAsync(
+      const hash = await claim.mutateAsync(
         fee.feeType === FeeType.Gas
           ? { vestingId, feeType: fee.feeType, value: fee.fee }
           : { vestingId, feeType: fee.feeType },
       )
+      await confirm(hash)
       setViewHandle(undefined) // the prior reveal is now spent — re-seal so it can be re-read
       toast.success("Claimed your vested tokens")
     } catch (e) {

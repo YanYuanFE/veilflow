@@ -22,6 +22,7 @@ import { RecipientPreview } from "@/components/recipient-preview"
 import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
 import { patchDistribution, type Distribution } from "@/lib/api"
 import { DISPERSE_SINGLETON, EXPLORER, err, numberConfig } from "./shared"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
 
 const MODES: { value: DisperseMode; label: string; blurb: string }[] = [
   { value: "direct", label: "Direct", blurb: "Straight from your balance via the singleton operator — gas fee per recipient." },
@@ -45,6 +46,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
   const register = useRegister()
   const recover = useRecoverFromWallets()
   const disperse = useDisperse({ encryptor: () => sdk.relayer })
+  const confirm = useConfirmTx()
 
   const [mode, setMode] = useState<DisperseMode>(parseMode(d.config.mode))
   const [input, setInput] = useState("")
@@ -81,7 +83,8 @@ export function DisperseCard({ d }: { d: Distribution }) {
     setError(undefined)
     try {
       setProgress("Registering subwallets…")
-      await register.mutateAsync({ token })
+      const hash = await register.mutateAsync({ token })
+      await confirm(hash)
       await preflightQ.refetch()
       toast.success("Subwallets registered")
     } catch (e) {
@@ -96,8 +99,12 @@ export function DisperseCard({ d }: { d: Distribution }) {
     setError(undefined)
     try {
       setProgress("Approving…")
-      if (mode === "direct") await approve.mutateAsync({ spender: DISPERSE_SINGLETON, until: Math.floor(Date.now() / 1000) + 86_400 })
-      else await approveWallets.mutateAsync({ token })
+      if (mode === "direct") {
+        await approve.mutateAsync({ spender: DISPERSE_SINGLETON, until: Math.floor(Date.now() / 1000) + 86_400 })
+      } else {
+        const hash = await approveWallets.mutateAsync({ token })
+        await confirm(hash)
+      }
       await preflightQ.refetch()
       toast.success("Approved")
     } catch (e) {
@@ -114,6 +121,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
     try {
       setProgress(`Dispersing to ${recipients.length}…`)
       const res = await disperse.mutateAsync({ token, mode, recipients, amounts })
+      await confirm(res)
       await patchDistribution(d.id, { status: "completed", deployTxHash: res.hash, config: { ...d.config, mode } })
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
       setInput("")
@@ -131,7 +139,8 @@ export function DisperseCard({ d }: { d: Distribution }) {
     setError(undefined)
     try {
       setProgress("Recovering residuals…")
-      await recover.mutateAsync({ token, to: address })
+      const hash = await recover.mutateAsync({ token, to: address })
+      await confirm(hash)
       toast.success("Residual tokens recovered to your balance")
     } catch (e) {
       setError(err(e))

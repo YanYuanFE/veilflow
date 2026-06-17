@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { isAddress, parseUnits, parseEther, formatUnits, type Address, type Hex } from "viem"
-import { useAccount } from "wagmi"
+import { useAccount, useBalance } from "wagmi"
 import { toast } from "sonner"
 import { useZamaSDK, useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
@@ -152,6 +152,26 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
   const withdrawOtherConf = useWithdrawOtherConfidentialToken({ address: manager })
   const withdrawOther = useWithdrawOtherToken({ address: manager })
 
+  // Withdrawable balances: the gas-fee pool is the manager's ETH (public); the surplus
+  // pool is the confidential token balance — revealed on demand like any other figure.
+  const ethBalQ = useBalance({ address: manager })
+  const getBalance = useAdminGetTokenBalance({ address: manager })
+  const [balHandle, setBalHandle] = useState<Hex>()
+  const balDecrypt = useUserDecrypt(
+    { handles: balHandle ? [{ handle: balHandle, contractAddress: manager }] : [] },
+    { enabled: !!balHandle },
+  )
+  const balRevealed = balHandle ? balDecrypt.data?.[balHandle] : undefined
+  const balRevealing = getBalance.isPending || (!!balHandle && balRevealed === undefined && !balDecrypt.error)
+  const onRevealBalance = async () => {
+    try {
+      const r = await getBalance.mutateAsync(undefined)
+      setBalHandle(r.handle)
+    } catch (e) {
+      toast.error(err(e))
+    }
+  }
+
   const [feeTo, setFeeTo] = useState("")
   const [feeAmount, setFeeAmount] = useState("")
   const [surplus, setSurplus] = useState("")
@@ -225,6 +245,26 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
               {withdrawGas.isPending || withdrawTokenFee.isPending ? "Withdrawing…" : "Withdraw fees"}
             </Button>
           </div>
+          {feeType === FeeType.Gas ? (
+            ethBalQ.data && (
+              <p className="text-xs text-muted-foreground">
+                Collectable ≈{" "}
+                <span className="font-mono text-foreground">
+                  {Number(ethBalQ.data.formatted).toFixed(5)} {ethBalQ.data.symbol}
+                </span>{" "}
+                ·{" "}
+                <button
+                  type="button"
+                  className="underline decoration-border underline-offset-2 hover:decoration-foreground"
+                  onClick={() => ethBalQ.data && setFeeAmount(ethBalQ.data.formatted)}
+                >
+                  Max
+                </button>
+              </p>
+            )
+          ) : feeType === FeeType.DistributionToken ? (
+            <p className="text-xs text-muted-foreground">Token-fee balance is confidential — no on-chain getter to reveal it.</p>
+          ) : null}
         </div>
 
         {/* Withdraw surplus */}
@@ -240,6 +280,22 @@ export function VestingTreasuryCard({ d }: { d: Distribution }) {
               {withdrawAdmin.isPending ? "Withdrawing…" : "Withdraw surplus"}
             </Button>
           </div>
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            Manager balance ·{" "}
+            {typeof balRevealed === "bigint" ? (
+              <span className="font-mono text-foreground">{formatUnits(balRevealed, decimals)}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={onRevealBalance}
+                disabled={balRevealing}
+                className="underline decoration-border underline-offset-2 hover:decoration-foreground disabled:opacity-50"
+              >
+                {balRevealing ? "Revealing…" : "Reveal"}
+              </button>
+            )}
+            {balDecrypt.error && <span className="text-destructive">reveal failed</span>}
+          </p>
         </div>
 
         {/* Rescue stray tokens */}
@@ -556,7 +612,7 @@ export function VestingAdminViewsCard({ d, recipient: lockedRecipient }: { d: Di
           </div>
         )}
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="outline" onClick={onReveal} disabled={!canReveal}>
+          <Button size="sm" onClick={onReveal} disabled={!canReveal}>
             {revealing ? "Decrypting…" : "Reveal"}
           </Button>
           <span className="font-mono text-sm text-foreground">

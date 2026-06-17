@@ -18,7 +18,7 @@ import { lifecycle } from "@/lib/lifecycle"
 import { getDistribution, type Distribution } from "@/lib/api"
 import { EXPLORER, numberConfig } from "./shared"
 import { DeployCard, IssueCard, TopUpPoolCard, AdminCard } from "./airdrop-panel"
-import { VestingDeployCard, VestingManageCard, VestingPauseRow } from "./vesting-panel"
+import { VestingDeployCard, VestingManageCard, VestingPauseRow, VestingDisclosureCard } from "./vesting-panel"
 import { VestingRolesCard, VestingTreasuryCard, VestingAdminViewsCard } from "./vesting-admin"
 import { DisperseCard } from "./disperse-panel"
 import { BrandingDialog } from "./branding-dialog"
@@ -114,6 +114,7 @@ function OverviewActions({ d }: { d: Distribution }) {
             <TabsTrigger value="roles">Roles</TabsTrigger>
             <TabsTrigger value="treasury">Treasury</TabsTrigger>
             <TabsTrigger value="views">Views</TabsTrigger>
+            <TabsTrigger value="disclose">Disclose</TabsTrigger>
           </TabsList>
           <TabsContent value="roles">
             <VestingRolesCard d={d} />
@@ -123,6 +124,9 @@ function OverviewActions({ d }: { d: Distribution }) {
           </TabsContent>
           <TabsContent value="views">
             <VestingAdminViewsCard d={d} />
+          </TabsContent>
+          <TabsContent value="disclose">
+            <VestingDisclosureCard d={d} />
           </TabsContent>
         </Tabs>
       </SheetButton>
@@ -192,6 +196,7 @@ function OverviewCard({ d, isOwner }: { d: Distribution; isOwner?: boolean }) {
           {d.type === "airdrop" && <SummaryRow label="Claim closes" value={endTs ? fmtTime(endTs) : "At deploy"} />}
           {d.type === "vesting" && <SummaryRow label="Schedule" value={`${fmtTime(startTs ?? 0)} → ${fmtTime(endTs ?? 0)}`} />}
         </div>
+        {isOwner && d.type === "vesting" && d.contractAddress && <VestingPauseRow d={d} />}
         {showClaim && (
           <div className="space-y-3 border-t border-border pt-4">
             <div className="flex items-center justify-between gap-3">
@@ -201,7 +206,6 @@ function OverviewCard({ d, isOwner }: { d: Distribution; isOwner?: boolean }) {
             {d.status === "live" && <ShareClaim slug={d.slug} />}
           </div>
         )}
-        {isOwner && d.type === "vesting" && d.contractAddress && <VestingPauseRow d={d} />}
       </CardContent>
     </Card>
   )

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { isAddress, formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
@@ -436,6 +436,10 @@ const DISCLOSURE_TYPES = [
   { value: DisclosureType.SettledAmount, label: "Settled (claimed) amount" },
 ]
 
+// Sentinel for the recipient selector: disclose the chosen figure to one auditor
+// across every recipient's vestings in a single transaction.
+const ALL_RECIPIENTS = "__all__"
+
 export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Distribution; recipient?: Address }) {
   const manager = d.contractAddress as Address
   const recipientsQ = useAllRecipients({ address: manager })
@@ -447,11 +451,30 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
   const [error, setError] = useState<string>()
   const [shared, setShared] = useState<string>()
 
+  // "All recipients" is only selectable in the standalone (non-locked) admin card.
+  const isAll = !lockedRecipient && recipientState === ALL_RECIPIENTS
+  const allRecipients = useMemo(() => recipientsQ.data ?? [], [recipientsQ.data])
+
+  // Single-recipient path: read just the selected recipient's vestings.
   const vestingsQ = useRecipientVestings({
     address: manager,
     recipient: isAddress(recipient) ? (recipient as Address) : undefined,
   })
-  const vestingIds = vestingsQ.data ?? []
+
+  // All-recipients path: fan out one read per recipient (collectors rendered below)
+  // and aggregate their vesting ids so we can disclose across everyone in one tx.
+  const [idsByRecipient, setIdsByRecipient] = useState<Record<string, readonly Hex[]>>({})
+  const onCollected = useCallback(
+    (r: Address, ids: readonly Hex[]) => setIdsByRecipient((prev) => (prev[r] === ids ? prev : { ...prev, [r]: ids })),
+    [],
+  )
+  const allLoaded = isAll && allRecipients.length > 0 && allRecipients.every((r) => idsByRecipient[r] !== undefined)
+  const allIds = useMemo(
+    () => (isAll ? allRecipients.flatMap((r) => idsByRecipient[r] ?? []) : []),
+    [isAll, allRecipients, idsByRecipient],
+  )
+
+  const vestingIds = isAll ? allIds : vestingsQ.data ?? []
   const disclose = useAdminBatchDiscloseToParty({ address: manager })
   const typeLabel = DISCLOSURE_TYPES.find((t) => t.value === dtype)?.label ?? "figure"
 
@@ -460,25 +483,30 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
     if (vestingIds.length === 0 || !isAddress(party)) return
     setBusy(true)
     try {
-      // Disclose the chosen figure across all of the recipient's vestings in one tx.
+      // Disclose the chosen figure across every selected vesting in one tx.
       await disclose.mutateAsync({
         vestingIds,
         disclosureTypes: vestingIds.map(() => dtype),
         party: party as Address,
       })
       toast.success("Disclosed to auditor — read-only & irreversible")
-      // Record each so the auditor can reverse-look-up what was disclosed to them. Non-blocking.
-      vestingIds.forEach((vid) =>
+      // Record each so the auditor can reverse-look-up what was disclosed. Non-blocking.
+      // Attribute each vesting to its owning recipient (matters in all-recipients mode).
+      const records = isAll
+        ? allRecipients.flatMap((r) => (idsByRecipient[r] ?? []).map((vid) => ({ vid, owner: r })))
+        : vestingIds.map((vid) => ({ vid, owner: recipient as Address }))
+      records.forEach(({ vid, owner }) =>
         void recordDisclosure({
           distributionId: d.id,
           manager,
           vestingId: vid,
           party: party as Address,
           disclosureType: dtype,
-          recipient: recipient as Address,
+          recipient: owner,
         }).catch(() => {}),
       )
-      setShared(`/audit?manager=${manager}&vesting=${vestingIds[0]}&type=${dtype}`)
+      // The audit deep-link is per-vesting; only meaningful for a single recipient.
+      setShared(isAll ? undefined : `/audit?manager=${manager}&vesting=${vestingIds[0]}&type=${dtype}`)
       setParty("")
     } catch (e) {
       setError(err(e))
@@ -507,6 +535,7 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
                   <SelectValue placeholder="Select recipient…" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={ALL_RECIPIENTS}>All recipients</SelectItem>
                   {recipientsQ.data?.map((r) => (
                     <SelectItem key={r} value={r}>
                       {shortAddr(r)}
@@ -536,10 +565,19 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
           <Label htmlFor="disc-party">Auditor address</Label>
           <Input id="disc-party" placeholder="0x…" value={party} onChange={(e) => setParty(e.target.value.trim())} />
         </div>
+        {/* All-recipients mode: fan out one read per recipient to collect their vesting ids. */}
+        {isAll && allRecipients.map((r) => <VestingIdsCollector key={r} manager={manager} recipient={r} onCollected={onCollected} />)}
+        {isAll && (
+          <p className="text-xs text-muted-foreground">
+            {allLoaded
+              ? `Discloses ${typeLabel.toLowerCase()} for all ${allRecipients.length} recipient${allRecipients.length === 1 ? "" : "s"} · ${vestingIds.length} vesting${vestingIds.length === 1 ? "" : "s"} in one transaction.`
+              : "Loading recipients…"}
+          </p>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button disabled={vestingIds.length === 0 || !isAddress(party) || busy}>
-              {busy ? "Disclosing…" : "Disclose to auditor"}
+            <Button disabled={vestingIds.length === 0 || !isAddress(party) || busy || (isAll && !allLoaded)}>
+              {busy ? "Disclosing…" : isAll && !allLoaded ? "Loading recipients…" : "Disclose to auditor"}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -547,9 +585,19 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
               <AlertDialogTitle>Disclose to auditor?</AlertDialogTitle>
               <AlertDialogDescription>
                 You're granting <span className="font-mono text-foreground">{shortAddr(party)}</span> read-only access to{" "}
-                <span className="font-mono text-foreground">{shortAddr(recipient)}</span>'s{" "}
-                <span className="text-foreground">{typeLabel.toLowerCase()}</span>. This is{" "}
-                <span className="text-foreground">irreversible</span> — ACL grants are append-only and cannot be revoked.
+                {isAll ? (
+                  <span className="text-foreground">
+                    all {allRecipients.length} recipients' {typeLabel.toLowerCase()} across {vestingIds.length} vesting
+                    {vestingIds.length === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-mono text-foreground">{shortAddr(recipient)}</span>'s{" "}
+                    <span className="text-foreground">{typeLabel.toLowerCase()}</span>
+                  </>
+                )}
+                . This is <span className="text-foreground">irreversible</span> — ACL grants are append-only and cannot be
+                revoked.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -573,6 +621,24 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
       </CardContent>
     </Card>
   )
+}
+
+/** Invisible helper: reads one recipient's vesting ids and reports them up, so the
+ *  disclosure card can aggregate across all recipients without calling a hook in a loop. */
+function VestingIdsCollector({
+  manager,
+  recipient,
+  onCollected,
+}: {
+  manager: Address
+  recipient: Address
+  onCollected: (recipient: Address, ids: readonly Hex[]) => void
+}) {
+  const q = useRecipientVestings({ address: manager, recipient })
+  useEffect(() => {
+    if (q.data) onCollected(recipient, q.data)
+  }, [q.data, recipient, onCollected])
+  return null
 }
 
 // Per-recipient admin actions, opened from a Recipients row — the address is locked so

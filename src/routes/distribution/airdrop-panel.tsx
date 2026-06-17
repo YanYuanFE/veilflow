@@ -575,7 +575,7 @@ export function AdminCard({ d }: { d: Distribution }) {
                 <div className="min-w-[14rem] flex-1">
                   <DateTimePicker value={newEnd} onChange={setNewEnd} placeholder="New close time" />
                 </div>
-                <Button size="sm" onClick={onExtend} disabled={!extendValid || extend.isPending}>
+                <Button size="sm" variant="outline" onClick={onExtend} disabled={!extendValid || extend.isPending}>
                   {extend.isPending ? "Extending…" : "Extend"}
                 </Button>
               </div>

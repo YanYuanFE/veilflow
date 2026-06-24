@@ -195,9 +195,14 @@ export function IssueCard({ d }: { d: Distribution }) {
   const windowClosed = ended ?? (endTs != null && now > endTs)
 
   const goLive = async () => {
-    await patchDistribution(d.id, { status: "live" })
-    queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
-    toast.success("Published — recipients can claim")
+    try {
+      await patchDistribution(d.id, { status: "live" })
+      queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
+      toast.success("Published — recipients can claim")
+    } catch (e) {
+      toast.error(err(e))
+      throw e
+    }
   }
 
   const onIssue = async () => {

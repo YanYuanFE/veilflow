@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DateTimePicker } from "@/components/ui/datetime-picker"
 import { Kicker, Folio, Notice } from "@/components/editorial"
 import { FeeDisclosure } from "@/components/fee-disclosure"
+import { VestingTimeline } from "@/components/vesting-timeline"
 import { cn } from "@/lib/utils"
 import { fmtTime, slugify } from "@/lib/format"
 import { useNowSeconds } from "@/lib/use-now"
@@ -67,6 +68,49 @@ export function Create() {
   const intervalDaysN = Number(intervalDays)
   const initialPctN = Number(initialUnlockPct)
   const timelockDaysN = Number(timelockDays)
+  const vestingDuration = startTs !== null && endTs !== null && endTs > startTs ? endTs - startTs : null
+  const scheduleErrors = {
+    start:
+      type === "vesting" && startTs === null
+        ? "Pick a vesting start."
+        : type === "vesting" && startTs !== null && endTs !== null && endTs <= startTs
+          ? "Start must be before the end."
+          : undefined,
+    end:
+      type === "vesting" && endTs === null
+        ? "Pick a vesting end."
+        : type === "vesting" && endTs !== null && endTs <= now
+          ? "End must be in the future."
+          : type === "vesting" && startTs !== null && endTs !== null && endTs <= startTs
+            ? "End must be after the start."
+            : undefined,
+    cliff:
+      type === "vesting" && (!Number.isFinite(cliffDaysN) || cliffDaysN < 0)
+        ? "Use 0 or more days."
+        : type === "vesting" && vestingDuration !== null && cliffDaysN * 86_400 > vestingDuration
+          ? "Cliff cannot exceed the vesting duration."
+          : undefined,
+    cliffAmount:
+      type === "vesting" && (!Number.isFinite(cliffAmountPctN) || cliffAmountPctN < 0)
+        ? "Use 0% or more."
+        : type === "vesting" && initialPctN + cliffAmountPctN > 100
+          ? "Initial + cliff unlock cannot exceed 100%."
+          : undefined,
+    interval:
+      type === "vesting" && (!Number.isFinite(intervalDaysN) || intervalDaysN < 1)
+        ? "Use at least 1 day."
+        : undefined,
+    initial:
+      type === "vesting" && (!Number.isFinite(initialPctN) || initialPctN < 0)
+        ? "Use 0% or more."
+        : type === "vesting" && initialPctN + cliffAmountPctN > 100
+          ? "Initial + cliff unlock cannot exceed 100%."
+          : undefined,
+    timelock:
+      type === "vesting" && (!Number.isFinite(timelockDaysN) || timelockDaysN < 0)
+        ? "Use 0 or more days."
+        : undefined,
+  }
   const vestingValid =
     startTs !== null &&
     endTs !== null &&
@@ -78,6 +122,28 @@ export function Create() {
     Number.isFinite(cliffAmountPctN) && cliffAmountPctN >= 0 &&
     initialPctN + cliffAmountPctN <= 100 &&
     Number.isFinite(timelockDaysN) && timelockDaysN >= 0
+  const vestingPreview =
+    startTs !== null &&
+    endTs !== null &&
+    endTs > startTs &&
+    Number.isFinite(cliffDaysN) &&
+    cliffDaysN >= 0 &&
+    Number.isFinite(intervalDaysN) &&
+    intervalDaysN >= 1 &&
+    Number.isFinite(initialPctN) &&
+    initialPctN >= 0 &&
+    Number.isFinite(cliffAmountPctN) &&
+    cliffAmountPctN >= 0 &&
+    initialPctN + cliffAmountPctN <= 100
+      ? {
+          start: startTs,
+          end: endTs,
+          cliffSeconds: Math.round(cliffDaysN * 86_400),
+          releaseIntervalSecs: Math.round(intervalDaysN * 86_400),
+          initialUnlockBps: Math.round(initialPctN * 100),
+          cliffAmountBps: Math.round(cliffAmountPctN * 100),
+        }
+      : undefined
 
   const create = useMutation({
     mutationFn: () =>
@@ -328,70 +394,121 @@ export function Create() {
 
                 {type === "vesting" && (
                   <div className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="vstart">Vesting starts</Label>
-                        <DateTimePicker id="vstart" value={start} onChange={setStart} placeholder="Pick start" />
+                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="vstart">Vesting starts</Label>
+                          <DateTimePicker
+                            id="vstart"
+                            value={start}
+                            onChange={setStart}
+                            placeholder="Pick start"
+                            aria-invalid={!!scheduleErrors.start}
+                            aria-describedby={scheduleErrors.start ? "vstart-error" : undefined}
+                          />
+                          <FieldError id="vstart-error" message={scheduleErrors.start} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="vend">Vesting ends</Label>
+                          <DateTimePicker
+                            id="vend"
+                            value={end}
+                            onChange={setEnd}
+                            placeholder="Pick end"
+                            aria-invalid={!!scheduleErrors.end}
+                            aria-describedby={scheduleErrors.end ? "vend-error" : undefined}
+                          />
+                          <FieldError id="vend-error" message={scheduleErrors.end} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cliff">Cliff (days)</Label>
+                          <Input
+                            id="cliff"
+                            inputMode="numeric"
+                            value={cliffDays}
+                            onChange={(e) => setCliffDays(e.target.value)}
+                            aria-invalid={!!scheduleErrors.cliff}
+                            aria-describedby={scheduleErrors.cliff ? "cliff-error" : undefined}
+                          />
+                          <FieldError id="cliff-error" message={scheduleErrors.cliff} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cliff-unlock">Cliff unlock (%)</Label>
+                          <Input
+                            id="cliff-unlock"
+                            inputMode="decimal"
+                            value={cliffAmountPct}
+                            onChange={(e) => setCliffAmountPct(e.target.value)}
+                            aria-invalid={!!scheduleErrors.cliffAmount}
+                            aria-describedby={scheduleErrors.cliffAmount ? "cliff-unlock-error" : undefined}
+                          />
+                          <FieldError id="cliff-unlock-error" message={scheduleErrors.cliffAmount} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="interval">Release interval (days)</Label>
+                          <Input
+                            id="interval"
+                            inputMode="numeric"
+                            value={intervalDays}
+                            onChange={(e) => setIntervalDays(e.target.value)}
+                            aria-invalid={!!scheduleErrors.interval}
+                            aria-describedby={scheduleErrors.interval ? "interval-error" : undefined}
+                          />
+                          <FieldError id="interval-error" message={scheduleErrors.interval} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="initial">Initial unlock (%)</Label>
+                          <Input
+                            id="initial"
+                            inputMode="decimal"
+                            value={initialUnlockPct}
+                            onChange={(e) => setInitialUnlockPct(e.target.value)}
+                            aria-invalid={!!scheduleErrors.initial}
+                            aria-describedby={scheduleErrors.initial ? "initial-error" : undefined}
+                          />
+                          <FieldError id="initial-error" message={scheduleErrors.initial} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="timelock">Timelock (days)</Label>
+                          <Input
+                            id="timelock"
+                            inputMode="numeric"
+                            value={timelockDays}
+                            onChange={(e) => setTimelockDays(e.target.value)}
+                            aria-invalid={!!scheduleErrors.timelock}
+                            aria-describedby={scheduleErrors.timelock ? "timelock-error" : undefined}
+                          />
+                          <FieldError id="timelock-error" message={scheduleErrors.timelock} />
+                        </div>
+                        <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
+                          <Checkbox id="revocable" checked={revocable} onCheckedChange={(v) => setRevocable(v === true)} />
+                          <Label htmlFor="revocable" className="font-normal">
+                            Revocable by admin
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
+                          <Checkbox
+                            id="split-enabled"
+                            checked={splitEnabled}
+                            onCheckedChange={(v) => setSplitEnabled(v === true)}
+                          />
+                          <Label htmlFor="split-enabled" className="font-normal">
+                            Allow recipients to split
+                          </Label>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="vend">Vesting ends</Label>
-                        <DateTimePicker id="vend" value={end} onChange={setEnd} placeholder="Pick end" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cliff">Cliff (days)</Label>
-                        <Input id="cliff" inputMode="numeric" value={cliffDays} onChange={(e) => setCliffDays(e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="cliff-unlock">Cliff unlock (%)</Label>
-                        <Input
-                          id="cliff-unlock"
-                          inputMode="decimal"
-                          value={cliffAmountPct}
-                          onChange={(e) => setCliffAmountPct(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="interval">Release interval (days)</Label>
-                        <Input
-                          id="interval"
-                          inputMode="numeric"
-                          value={intervalDays}
-                          onChange={(e) => setIntervalDays(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="initial">Initial unlock (%)</Label>
-                        <Input
-                          id="initial"
-                          inputMode="decimal"
-                          value={initialUnlockPct}
-                          onChange={(e) => setInitialUnlockPct(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="timelock">Timelock (days)</Label>
-                        <Input
-                          id="timelock"
-                          inputMode="numeric"
-                          value={timelockDays}
-                          onChange={(e) => setTimelockDays(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
-                        <Checkbox id="revocable" checked={revocable} onCheckedChange={(v) => setRevocable(v === true)} />
-                        <Label htmlFor="revocable" className="font-normal">
-                          Revocable by admin
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
-                        <Checkbox
-                          id="split-enabled"
-                          checked={splitEnabled}
-                          onCheckedChange={(v) => setSplitEnabled(v === true)}
-                        />
-                        <Label htmlFor="split-enabled" className="font-normal">
-                          Allow recipients to split
-                        </Label>
+
+                      <div className="rounded-md border border-border bg-muted/20 p-3">
+                        {vestingPreview ? (
+                          <VestingTimeline {...vestingPreview} />
+                        ) : (
+                          <div className="flex min-h-64 flex-col justify-center rounded-sm border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
+                            <Kicker className="tracking-[0.12em]">Vesting timeline</Kicker>
+                            <p className="mt-3 leading-relaxed">
+                              Add a valid start, end, cliff, interval, and unlock percentages to preview the release shape.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -399,18 +516,6 @@ export function Create() {
                       Initial unlock releases at start, cliff unlock releases when the cliff ends, the remainder vests linearly
                       each interval; timelock delays when released tokens become claimable.
                     </p>
-                    {(start ||
-                      end ||
-                      cliffDays !== "0" ||
-                      initialUnlockPct !== "0" ||
-                      cliffAmountPct !== "0" ||
-                      timelockDays !== "0") &&
-                      !vestingValid && (
-                        <p className="text-sm text-destructive">
-                          Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial
-                          + cliff unlock 0–100%, timelock ≥ 0.
-                        </p>
-                      )}
                   </div>
                 )}
 
@@ -441,19 +546,26 @@ export function Create() {
                 <ReviewRow
                   label="Terms"
                   value={
-                    <TermsSummary
-                      type={type}
-                      startTs={startTs}
-                      endTs={endTs}
-                      canExtend={canExtend}
-                      cliffDays={cliffDays}
-                      cliffAmountPct={cliffAmountPct}
-                      intervalDays={intervalDays}
-                      initialUnlockPct={initialUnlockPct}
-                      timelockDays={timelockDays}
-                      revocable={revocable}
-                      splitEnabled={splitEnabled}
-                    />
+                    <div className="space-y-3">
+                      <TermsSummary
+                        type={type}
+                        startTs={startTs}
+                        endTs={endTs}
+                        canExtend={canExtend}
+                        cliffDays={cliffDays}
+                        cliffAmountPct={cliffAmountPct}
+                        intervalDays={intervalDays}
+                        initialUnlockPct={initialUnlockPct}
+                        timelockDays={timelockDays}
+                        revocable={revocable}
+                        splitEnabled={splitEnabled}
+                      />
+                      {type === "vesting" && vestingPreview && (
+                        <div className="rounded-md border border-border bg-muted/20 p-3">
+                          <VestingTimeline {...vestingPreview} />
+                        </div>
+                      )}
+                    </div>
                   }
                   ready={termsReady}
                 />
@@ -476,6 +588,15 @@ export function Create() {
         </aside>
       </div>
     </div>
+  )
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return (
+    <p id={id} className="text-xs leading-relaxed text-destructive" role="alert">
+      {message}
+    </p>
   )
 }
 

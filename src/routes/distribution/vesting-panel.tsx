@@ -220,9 +220,14 @@ export function VestingManageCard({ d }: { d: Distribution }) {
   })
 
   const goLive = async () => {
-    await patchDistribution(d.id, { status: "live" })
-    queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
-    toast.success("Published — recipients can claim")
+    try {
+      await patchDistribution(d.id, { status: "live" })
+      queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
+      toast.success("Published — recipients can claim")
+    } catch (e) {
+      toast.error(err(e))
+      throw e
+    }
   }
 
   const onAdd = async () => {
@@ -391,17 +396,27 @@ export function VestingManageCard({ d }: { d: Distribution }) {
             </Notice>
           )}
           {lastCreatedBatch && (
-            <Notice tone="seal" className="flex flex-wrap items-center justify-between gap-3">
-              <span>
-                Created {lastCreatedBatch.count} vesting{lastCreatedBatch.count === 1 ? "" : "s"}. The recipients list has
-                been refreshed.
+            <Notice tone="seal" className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium tabular-nums">
+                {lastCreatedBatch.count} created
               </span>
-              <Button type="button" variant="outline" size="sm" asChild>
-                <a href="#vesting-recipients">
-                  <Eye />
-                  View recipients
-                </a>
-              </Button>
+              {d.status !== "live" && (
+                <>
+                  <span className="hidden text-muted-foreground sm:inline" aria-hidden>
+                    ·
+                  </span>
+                  <GoLiveDialog
+                    triggerLabel="Publish now"
+                    triggerVariant="outline"
+                    onConfirm={goLive}
+                    checks={[
+                      { label: "Vesting manager deployed", ok: true },
+                      { label: "At least one recipient created", ok: recipientCount > 0 || lastCreatedBatch.count > 0, blocking: true, detail: `${Math.max(recipientCount, lastCreatedBatch.count)} created` },
+                      { label: "Schedule set", ok: endTs > startTs, detail: `${fmtTime(startTs)} → ${fmtTime(endTs)}` },
+                    ]}
+                  />
+                </>
+              )}
             </Notice>
           )}
           <Button onClick={onAdd} disabled={!checkingDone || hasUnverifiedRecipients || fresh.length === 0 || !!progress}>
@@ -579,7 +594,7 @@ function RecipientsTable({ d }: { d: Distribution }) {
   const rangeEnd = Math.min(totalNumber, (safePageIndex + 1) * pageSize)
 
   return (
-    <Card id="vesting-recipients">
+    <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

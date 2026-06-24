@@ -26,12 +26,16 @@ function DateTimePickerImpl({
   id,
   placeholder = "Pick a date & time",
   disabled,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: {
   value: string
   onChange: (v: string) => void
   id?: string
   placeholder?: string
   disabled?: boolean
+  "aria-invalid"?: boolean
+  "aria-describedby"?: string
 }) {
   const [open, setOpen] = useState(false)
   const date = value ? new Date(value) : undefined
@@ -54,6 +58,8 @@ function DateTimePickerImpl({
           type="button"
           variant="outline"
           disabled={disabled}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           // Match the Input field height/shape (h-8) so it lines up with the
           // sibling inputs and action buttons in forms (default Button is h-10).
           className={cn("h-8 w-full justify-between rounded-[4px] px-2.5 font-normal", !date && "text-muted-foreground")}

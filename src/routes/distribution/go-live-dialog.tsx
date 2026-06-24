@@ -1,3 +1,4 @@
+import { useState, type MouseEvent } from "react"
 import { Check, X, Radio } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,19 +21,39 @@ export type GoLiveCheck = { label: string; ok: boolean; blocking?: boolean; deta
 export function GoLiveDialog({
   checks,
   onConfirm,
-  busy,
+  triggerLabel = "Go live",
+  triggerVariant = "default",
 }: {
   checks: GoLiveCheck[]
-  onConfirm: () => void
-  busy?: boolean
+  onConfirm: () => void | Promise<void>
+  triggerLabel?: string
+  triggerVariant?: "default" | "outline" | "secondary" | "ghost" | "destructive"
 }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
   const blockers = checks.filter((c) => c.blocking && !c.ok)
+
+  const onPublish = async (e: MouseEvent) => {
+    // Hold the dialog open through the async publish so the spinner is visible
+    // (the default AlertDialogAction would close it immediately).
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await onConfirm()
+      setOpen(false)
+    } catch {
+      // onConfirm surfaces its own error toast; keep the dialog open to retry.
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
       <AlertDialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" variant={triggerVariant}>
           <Radio />
-          Go live
+          {triggerLabel}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
@@ -64,8 +85,8 @@ export function GoLiveDialog({
           <p className="text-sm text-destructive">Resolve the blocking items above before publishing.</p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={blockers.length > 0 || busy}>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onPublish} disabled={blockers.length > 0 || busy}>
             {busy ? "Publishing…" : "Publish"}
           </AlertDialogAction>
         </AlertDialogFooter>

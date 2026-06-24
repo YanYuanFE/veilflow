@@ -1,5 +1,18 @@
 import { type ReactNode, useState } from "react"
-import { Check, Copy, ExternalLink, Coins, Settings2, SlidersHorizontal, type LucideIcon } from "lucide-react"
+import {
+  ArrowDown,
+  Check,
+  Coins,
+  Copy,
+  ExternalLink,
+  Megaphone,
+  Rocket,
+  Send,
+  Settings2,
+  SlidersHorizontal,
+  UserPlus,
+  type LucideIcon,
+} from "lucide-react"
 import { useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useAccount } from "wagmi"
@@ -84,10 +97,176 @@ export function DistributionDetail() {
   return (
     <div className="space-y-6">
       {heading}
+      <NextActionCard d={d} nextLabel={lc.nextLabel} />
       <OverviewCard d={d} isOwner />
-      <MainPanel d={d} />
+      <section id="primary-operation" className="scroll-mt-24">
+        <MainPanel d={d} />
+      </section>
     </div>
   )
+}
+
+function NextActionCard({ d, nextLabel }: { d: Distribution; nextLabel: string | null }) {
+  const action = nextAction(d, nextLabel)
+  const Icon = action.icon
+
+  return (
+    <Card className="border-foreground/20 bg-[color-mix(in_oklch,var(--card)_82%,var(--seal)_18%)]">
+      <CardContent className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.42fr)] lg:items-center">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-seal text-seal-foreground">
+              <Icon className="size-4" aria-hidden />
+            </span>
+            <Kicker className="tracking-[0.12em]">Next action</Kicker>
+          </div>
+          <div className="space-y-1">
+            <h2 className="font-display text-2xl leading-tight tracking-tight text-foreground">{action.title}</h2>
+            <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{action.body}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-4 lg:border-t-0 lg:border-l lg:pl-5 lg:pt-0">
+          <div className="space-y-2">
+            {action.checks.map((check) => (
+              <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">{check.label}</span>
+                <span className="inline-flex items-center gap-1.5 text-foreground">
+                  <span className={check.done ? "size-1.5 rounded-full bg-seal" : "size-1.5 rounded-full bg-muted-foreground"} aria-hidden />
+                  {check.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {action.kind === "share" ? (
+            <ShareClaim slug={d.slug} />
+          ) : action.href ? (
+            <Button asChild className="w-full">
+              <a href={action.href}>
+                {action.ctaIcon ? <action.ctaIcon /> : null}
+                {action.cta}
+              </a>
+            </Button>
+          ) : d.deployTxHash ? (
+            <Button asChild variant="outline" className="w-full">
+              <a href={`${EXPLORER}/tx/${d.deployTxHash}`} target="_blank" rel="noreferrer">
+                <ExternalLink />
+                View transaction
+              </a>
+            </Button>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function nextAction(d: Distribution, nextLabel: string | null): {
+  kind: "work" | "share" | "done"
+  title: string
+  body: string
+  cta: string
+  href?: string
+  icon: LucideIcon
+  ctaIcon?: LucideIcon
+  checks: { label: string; value: string; done: boolean }[]
+} {
+  if (d.status === "revoked") {
+    return {
+      kind: "done",
+      title: "Distribution revoked",
+      body: "This distribution is no longer active. Keep the overview for audit context and use admin surfaces only for recovery or disclosure work.",
+      cta: "View transaction",
+      icon: Check,
+      checks: [
+        { label: "Configured", value: "Done", done: true },
+        { label: "Active", value: "Revoked", done: false },
+      ],
+    }
+  }
+
+  if (d.type === "disperse") {
+    if (d.status === "completed") {
+      return {
+        kind: "done",
+        title: "Batch sent",
+        body: "Recipients have received tokens into their confidential balances. The remaining task is audit or residual recovery if wallet mode was used.",
+        cta: "View transaction",
+        icon: Check,
+        checks: [
+          { label: "Configured", value: "Done", done: true },
+          { label: "Dispersed", value: "Done", done: true },
+        ],
+      }
+    }
+    return {
+      kind: "work",
+      title: "Paste recipients and send the batch",
+      body: "Disperse has no separate deploy or claim step. Add address + amount rows, pass pre-flight, then send in one encrypted batch.",
+      cta: "Go to disperse form",
+      href: "#primary-operation",
+      icon: Send,
+      ctaIcon: ArrowDown,
+      checks: [
+        { label: "Configured", value: "Done", done: true },
+        { label: "Batch sent", value: "Pending", done: false },
+      ],
+    }
+  }
+
+  const claimType = d.type === "airdrop" ? "claim pool" : "vesting manager"
+  const deployLabel = d.type === "airdrop" ? "Deploy & fund" : "Deploy manager"
+  const recipientLabel = d.type === "airdrop" ? "claims issued" : "vestings created"
+
+  if (!d.contractAddress) {
+    return {
+      kind: "work",
+      title: nextLabel ?? deployLabel,
+      body:
+        d.type === "airdrop"
+          ? "Fund and deploy the airdrop pool first. Recipients cannot be issued until the pool exists on-chain."
+          : "Deploy the vesting manager first. Recipient grants are added after the manager address is written back.",
+      cta: deployLabel,
+      href: "#primary-operation",
+      icon: Rocket,
+      ctaIcon: ArrowDown,
+      checks: [
+        { label: "Distribution configured", value: "Done", done: true },
+        { label: `${claimType} deployed`, value: "Pending", done: false },
+      ],
+    }
+  }
+
+  if (d.status !== "live") {
+    return {
+      kind: "work",
+      title: "Add recipients, then publish",
+      body: `The ${claimType} is deployed. Add recipients now; once at least one recipient is ready, publish so the claim page becomes useful.`,
+      cta: "Go to recipients",
+      href: "#primary-operation",
+      icon: UserPlus,
+      ctaIcon: ArrowDown,
+      checks: [
+        { label: `${claimType} deployed`, value: "Done", done: true },
+        { label: recipientLabel, value: "Needed", done: false },
+        { label: "Published", value: "Pending", done: false },
+      ],
+    }
+  }
+
+  return {
+    kind: "share",
+    title: "Share the claim page",
+    body: "This distribution is live. Copy the claim link, hand it to recipients, and keep admin controls for pause, top-up, disclosure, or recovery work.",
+    cta: "Share claim page",
+    icon: Megaphone,
+    checks: [
+      { label: `${claimType} deployed`, value: "Done", done: true },
+      { label: "Recipients ready", value: "Done", done: true },
+      { label: "Published", value: "Live", done: true },
+    ],
+  }
 }
 
 // The current main operation, driven by type + lifecycle. Always full-width.

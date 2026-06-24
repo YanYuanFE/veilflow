@@ -9,7 +9,7 @@ const NAV: { to: string; label: string; aliases?: string[] }[] = [
   { to: "/dashboard", label: "Distributions" },
   { to: "/claims", label: "Claims" },
   { to: "/wrap", label: "Wrap / Unwrap", aliases: ["/unwrap"] },
-  { to: "/audit", label: "Audit" },
+  { to: "/audit", label: "Auditor" },
   { to: "/docs", label: "Docs" },
 ]
 

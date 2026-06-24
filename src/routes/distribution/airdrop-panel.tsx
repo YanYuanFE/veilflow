@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef } from "react"
-import { Rocket, RefreshCw, UserPlus, Upload, Stamp, Coins, Pause, Play, CalendarPlus, Check, ArrowDownToLine, ShieldCheck, ShieldX, LifeBuoy, Clock, Fuel } from "lucide-react"
+import { useState, useMemo } from "react"
+import { Rocket, RefreshCw, UserPlus, Stamp, Coins, Pause, Play, CalendarPlus, Check, ArrowDownToLine, ShieldCheck, ShieldX, LifeBuoy, Clock, Fuel } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { isAddress, parseUnits, parseEther, formatUnits, type Address, type Hex } from "viem"
+import { isAddress, parseUnits, parseEther, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
 import { useZamaSDK, useConfidentialApprove, useConfidentialTransfer } from "@zama-fhe/react-sdk"
@@ -33,9 +33,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DateTimePicker } from "@/components/ui/datetime-picker"
 import { Kicker, Notice, SectionHead } from "@/components/editorial"
 import { BalanceLine } from "@/components/balance-line"
-import { RecipientPreview } from "@/components/recipient-preview"
+import { RecipientImportPanel } from "@/components/recipient-import-panel"
 import { shortAddr, fmtTime } from "@/lib/format"
-import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
+import { parseEntries } from "@/lib/recipients"
 import { useNowSeconds } from "@/lib/use-now"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { patchDistribution, listRecipients, addRecipient, type Distribution, type RecipientArtifact } from "@/lib/api"
@@ -178,11 +178,7 @@ export function IssueCard({ d }: { d: Distribution }) {
   const [input, setInput] = useState("")
   const [progress, setProgress] = useState<string>()
   const [error, setError] = useState<string>()
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const loadCsv = (file: File) => {
-    void readRecipientCsv(file).then((text) => setInput((v) => (v ? `${v}\n` : "") + text))
-  }
+  const [lastIssuedBatch, setLastIssuedBatch] = useState<{ count: number }>()
 
   const recipientsQ = useQuery({ queryKey: ["recipients", d.id], queryFn: () => listRecipients(d.id) })
   const now = useNowSeconds()
@@ -207,6 +203,7 @@ export function IssueCard({ d }: { d: Distribution }) {
   const onIssue = async () => {
     setError(undefined)
     if (!airdrop || fresh.length === 0) return
+    const issuedCount = fresh.length
     try {
       for (let i = 0; i < fresh.length; i++) {
         const e = fresh[i]
@@ -225,10 +222,11 @@ export function IssueCard({ d }: { d: Distribution }) {
         })
         // Persist only the ciphertext artifact + address + signature. No plaintext amount.
         await addRecipient(d.id, { recipient: e.recipient, handle: enc.handle, inputProof: enc.inputProof, signature })
-        queryClient.invalidateQueries({ queryKey: ["recipients", d.id] })
       }
+      await recipientsQ.refetch()
       setInput("")
-      toast.success(`${fresh.length} claim${fresh.length === 1 ? "" : "s"} issued`)
+      setLastIssuedBatch({ count: issuedCount })
+      toast.success(`${issuedCount} claim${issuedCount === 1 ? "" : "s"} issued`)
     } catch (e) {
       setError(err(e))
       toast.error(err(e))
@@ -245,15 +243,7 @@ export function IssueCard({ d }: { d: Distribution }) {
             <div>
               <CardTitle>Add recipients</CardTitle>
               <CardDescription>
-                One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
-                <button
-                  type="button"
-                  onClick={downloadRecipientTemplate}
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  download a template
-                </button>
-                . Encrypted &amp; signed per recipient, in your browser.
+                Import address + amount rows, review the parse check, then issue encrypted claim artifacts in your browser.
               </CardDescription>
             </div>
             {d.status === "funded" && (
@@ -269,57 +259,27 @@ export function IssueCard({ d }: { d: Distribution }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <textarea
-            className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-            placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
+          <RecipientImportPanel
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(v) => {
+              setInput(v)
+              setLastIssuedBatch(undefined)
+            }}
+            entries={entries}
+            errors={errors}
+            decimals={decimals}
+            walletAddress={address}
+            issued={issued}
+            issuedLabel="Issued"
+            readyCount={fresh.length}
+            readyLabel="To issue"
+            skippedCount={entries.length - fresh.length}
+            skippedLabel="Already issued"
+            batchTotal={batchTotal}
+            batchLabel="This batch"
+            batchDetail={batchTotal > 0n ? `${fresh.length} new claim${fresh.length === 1 ? "" : "s"}` : undefined}
+            previewLabel="Claims preview"
           />
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              disabled={!address}
-              onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
-            >
-              <UserPlus />
-              Add my address
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) loadCsv(f)
-                e.target.value = ""
-              }}
-            />
-            <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
-              <Upload />
-              Upload CSV
-            </Button>
-            <span className="text-muted-foreground">
-              {fresh.length} to add
-              {entries.length - fresh.length > 0 && ` · ${entries.length - fresh.length} already issued`}
-              {errors.length > 0 && ` · ${errors.length} error${errors.length > 1 ? "s" : ""}`}
-            </span>
-          </div>
-          {errors.length > 0 && (
-            <ul className="space-y-0.5 text-xs text-destructive">
-              {errors.slice(0, 5).map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
-          )}
-          {batchTotal > 0n && (
-            <p className="text-xs text-muted-foreground">
-              This batch · <span className="font-mono text-foreground">{formatUnits(batchTotal, decimals)}</span> across {fresh.length}
-            </p>
-          )}
-          <RecipientPreview entries={entries} issued={issued} decimals={decimals} issuedLabel="Issued" />
           {windowClosed && (
             <Notice tone="void">
               The claim window closed {fmtTime(endTs)} — anything issued now can't be claimed. Extend the window from
@@ -330,11 +290,25 @@ export function IssueCard({ d }: { d: Distribution }) {
             <Stamp />
             {progress ?? (fresh.length ? `Issue ${fresh.length} claim${fresh.length === 1 ? "" : "s"}` : "Issue claims")}
           </Button>
+          {lastIssuedBatch && (
+            <Notice tone="seal" className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                Issued {lastIssuedBatch.count} claim{lastIssuedBatch.count === 1 ? "" : "s"}. The issued list has been
+                refreshed.
+              </span>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href="#issued-recipients">
+                  <ArrowDownToLine />
+                  View issued
+                </a>
+              </Button>
+            </Notice>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="issued-recipients">
         <CardHeader>
           <CardTitle>Issued ({recipientsQ.data?.length ?? 0})</CardTitle>
           <CardDescription>Ciphertext artifacts stored for delivery. Amounts are encrypted — not shown.</CardDescription>

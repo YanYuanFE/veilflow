@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
+import { ArrowRight, Database, Eye, EyeOff, LockKeyhole, MonitorSmartphone, Send, ServerCog, Split, TrendingUp } from "lucide-react"
 import { Logomark } from "@/components/logomark"
 import "./variant-landing.css"
 
@@ -7,7 +8,7 @@ const NAV_LINKS = [
   { to: "/dashboard", label: "Distributions" },
   { to: "/claims", label: "Claims" },
   { to: "/wrap", label: "Wrap / Unwrap" },
-  { to: "/audit", label: "Audit" },
+  { to: "/audit", label: "Auditor" },
 ]
 
 const BADGES = [
@@ -16,34 +17,30 @@ const BADGES = [
   { name: "Compliance Node", data: "VERIFIED: ERC-7984" },
 ]
 
-const FEATURES = [
+const LEAKS = [
+  "Airdrops get farmed and front-run when allocation sizes are public.",
+  "Investor positions, grants, and payroll stay readable on explorers forever.",
+  "Compliance often needs one figure, not a public table of every recipient.",
+]
+
+const TRUST_LAYERS = [
   {
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </svg>
-    ),
-    title: "Shielded Wrapping",
-    body: "Convert any standard ERC-20 token into a confidential ERC-7984 unit. Balances are mathematically hidden while remaining verifiable.",
+    icon: Database,
+    layer: "On-chain",
+    holds: "SDK contracts, encrypted balances, claim authorization.",
+    guarantee: "Funds stay controlled by contracts; claims are verified there.",
   },
   {
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      </svg>
-    ),
-    title: "End-to-End Auth",
-    body: "Only the specific recipient's private key can decrypt the distribution amount. Issuers sign, recipients reveal.",
+    icon: ServerCog,
+    layer: "Backend",
+    holds: "Metadata, slugs, theme, ciphertext artifacts, addresses.",
+    guarantee: "Never a plaintext amount; it cannot forge a valid claim.",
   },
   {
-    icon: (
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-      </svg>
-    ),
-    title: "Selective Disclosure",
-    body: "Grant a named auditor read-only access to a single figure. Prove compliance for one allocation without exposing anyone else's.",
+    icon: MonitorSmartphone,
+    layer: "Client only",
+    holds: "Plaintext amounts before encryption, and the holder's decrypted view.",
+    guarantee: "Plaintext never leaves the browser.",
   },
 ]
 
@@ -57,13 +54,7 @@ const INSTRUMENTS = [
     blurb: "Signature-authorized claims. Each amount is encrypted to its recipient; they reveal and claim at a branded page.",
     issuer: "Sign claims",
     recipient: "Reveal + claim at /claim/:slug",
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 3v12" />
-        <path d="M7 10l5 5 5-5" />
-        <path d="M5 21h14" />
-      </svg>
-    ),
+    icon: Send,
   },
   {
     id: "vesting",
@@ -72,12 +63,7 @@ const INSTRUMENTS = [
     blurb: "Linear unlock with cliff and initial release, batch-created in one transaction. Recipients claim the vested portion over time.",
     issuer: "Batch-create vestings",
     recipient: "Claim what's vested so far",
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 17l5-5 4 4 8-8" />
-        <path d="M16 8h4v4" />
-      </svg>
-    ),
+    icon: TrendingUp,
   },
   {
     id: "disperse",
@@ -86,21 +72,18 @@ const INSTRUMENTS = [
     blurb: "One encrypted batch, sent directly. Lands in the recipient's confidential balance instantly — no claim step.",
     issuer: "One-shot batch send",
     recipient: "Receives into confidential balance",
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 2L11 13" />
-        <path d="M22 2l-7 20-4-9-9-4 20-7z" />
-      </svg>
-    ),
+    icon: Split,
   },
 ]
 
-const ROWS = [
-  { index: "#001", addr: "0x8f2e...91c3", amount: "2015.31 cUSDT" },
-  { index: "#002", addr: "0x12a4...ff08", amount: "7527.37 cUSDT" },
-  { index: "#003", addr: "0xbc92...44e1", amount: "**********" },
-  { index: "#004", addr: "0x7d01...aa52", amount: "8829.89 cUSDT" },
+const ROWS: ConsoleRowData[] = [
+  { index: "#001", addr: "0x8f2e...91c3", sealed: "SEALED: 0x9f...24", amount: "2,015.31 cUSDT" },
+  { index: "#002", addr: "0x12a4...ff08", sealed: "SEALED: 0x74...b8", amount: "7,527.37 cUSDT" },
+  { index: "#003", addr: "0xbc92...44e1", sealed: "SEALED: 0x31...0c", amount: "4,300.00 cUSDT" },
+  { index: "#004", addr: "0x7d01...aa52", sealed: "SEALED: 0xaa...52", amount: "8,829.89 cUSDT" },
 ]
+
+type ConsoleRowData = { index: string; addr: string; sealed: string; amount: string }
 
 export function VariantLanding() {
   return (
@@ -138,10 +121,7 @@ export function VariantLanding() {
           </p>
           <div className="vl-trust">
             <span className="vl-trust-icon" aria-hidden>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
+              <LockKeyhole size={16} strokeWidth={2} />
             </span>
             <span className="vl-trust-text">
               <strong>Plaintext never leaves your browser.</strong> The backend only ever sees ciphertext artifacts.
@@ -150,18 +130,7 @@ export function VariantLanding() {
           <div className="vl-cta-group">
             <Link to="/create" className="vl-btn-primary">
               Create a distribution
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+              <ArrowRight size={18} strokeWidth={2.25} aria-hidden />
             </Link>
             <Link to="/docs" className="vl-btn-secondary">
               Read the docs
@@ -202,7 +171,7 @@ export function VariantLanding() {
               <article className="vl-instrument-card" key={it.id}>
                 <div className="vl-instrument-top">
                   <span className="vl-instrument-index">{it.index}</span>
-                  {it.icon}
+                  <it.icon className="vl-card-icon" aria-hidden />
                 </div>
                 <h3>{it.title}</h3>
                 <p className="vl-instrument-blurb">{it.blurb}</p>
@@ -223,15 +192,56 @@ export function VariantLanding() {
 
         <section id="infrastructure" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">02 / ARCHITECTURE</div>
-            <h2>Native privacy infrastructure.</h2>
+            <div className="vl-metadata-tag">02 / WHY CONFIDENTIAL</div>
+            <h2>Public chains leak the number first.</h2>
+            <p className="vl-section-lede">
+              VeilFlow treats amount privacy as the default treasury posture, not an afterthought patched onto a public ledger.
+            </p>
+          </div>
+          <div className="vl-leak-panel">
+            <div className="vl-leak-statement">
+              <EyeOff className="vl-card-icon" aria-hidden />
+              <p>
+                The red line is simple: encryption happens in the issuer's browser, and recipients decrypt only their own figure.
+              </p>
+            </div>
+            <ol className="vl-leak-list">
+              {LEAKS.map((leak, i) => (
+                <li key={leak}>
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  {leak}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="trust-boundary" className="vl-section">
+          <div className="vl-section-header">
+            <div className="vl-metadata-tag">03 / TRUST BOUNDARY</div>
+            <h2>Three layers, one privacy line.</h2>
+            <p className="vl-section-lede">
+              The app can coordinate distribution logistics without becoming a place where sensitive amounts live.
+            </p>
           </div>
           <div className="vl-grid-features">
-            {FEATURES.map((f) => (
-              <div className="vl-feature-card" key={f.title}>
-                <div className="vl-icon">{f.icon}</div>
-                <h3>{f.title}</h3>
-                <p>{f.body}</p>
+            {TRUST_LAYERS.map((f, i) => (
+              <div className="vl-feature-card" key={f.layer}>
+                <div className="vl-feature-top">
+                  <span className="vl-instrument-index">{String(i + 1).padStart(2, "0")}</span>
+                  <f.icon className="vl-card-icon" aria-hidden />
+                </div>
+                <h3>{f.layer}</h3>
+                <dl className="vl-layer-meta">
+                  <div>
+                    <dt>Holds</dt>
+                    <dd>{f.holds}</dd>
+                  </div>
+                  <div>
+                    <dt>Guarantee</dt>
+                    <dd>{f.guarantee}</dd>
+                  </div>
+                </dl>
               </div>
             ))}
           </div>
@@ -239,7 +249,7 @@ export function VariantLanding() {
 
         <section id="console-preview" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">03 / INTERFACE</div>
+            <div className="vl-metadata-tag">04 / INTERFACE</div>
             <h2>The distribution console.</h2>
           </div>
           <div className="vl-console">
@@ -265,11 +275,11 @@ export function VariantLanding() {
                 </div>
               </div>
               {ROWS.map((r) => (
-                <ConsoleRow key={r.index} index={r.index} addr={r.addr} amount={r.amount} />
+                <ConsoleRow key={r.index} {...r} />
               ))}
             </div>
           </div>
-          <p className="vl-console-note">Hover over sealed values to simulate key-holder decryption.</p>
+          <p className="vl-console-note">Select a row to reveal a fixed key-holder sample.</p>
         </section>
       </main>
 
@@ -284,42 +294,24 @@ export function VariantLanding() {
   )
 }
 
-const SCRAMBLE_CHARS = (len: number) =>
-  Array.from({ length: len }, () => String.fromCharCode(33 + Math.floor(Math.random() * 94))).join("")
-
-/** A console row whose sealed amount scrambles into a "decrypted" figure on hover. */
-function ConsoleRow({ index, addr, amount }: { index: string; addr: string; amount: string }) {
-  const [display, setDisplay] = useState(amount)
-  const timer = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
-
-  const enter = () => {
-    clearInterval(timer.current)
-    const decrypted = `${(1000 + Math.random() * 9000).toFixed(2)} cUSDT`
-    let iterations = 0
-    timer.current = setInterval(() => {
-      const revealed = decrypted.slice(0, Math.floor(iterations))
-      setDisplay(revealed + SCRAMBLE_CHARS(decrypted.length - revealed.length))
-      iterations += 1 / 3
-      if (iterations >= decrypted.length) {
-        clearInterval(timer.current)
-        setDisplay(decrypted)
-      }
-    }, 30)
-  }
-
-  const leave = () => {
-    clearInterval(timer.current)
-    setDisplay(amount)
-  }
-
-  useEffect(() => () => clearInterval(timer.current), [])
-
+/** A console row with an explicit, keyboard-accessible key-holder reveal. */
+function ConsoleRow({ index, addr, sealed, amount }: ConsoleRowData) {
+  const [revealed, setRevealed] = useState(false)
   return (
-    <div className="vl-row" onMouseEnter={enter} onMouseLeave={leave}>
+    <button
+      type="button"
+      className="vl-row"
+      onClick={() => setRevealed((v) => !v)}
+      aria-pressed={revealed}
+      aria-label={`${revealed ? "Hide" : "Reveal"} sample encrypted amount for ${addr}`}
+    >
       <div>{index}</div>
       <div>{addr}</div>
-      <div className="vl-encrypted-val">{display}</div>
-      <div className="vl-status-shielded">SHIELDED</div>
-    </div>
+      <div className="vl-encrypted-val">{revealed ? amount : sealed}</div>
+      <div className="vl-status-shielded">
+        {revealed ? <Eye size={14} strokeWidth={2} aria-hidden /> : <LockKeyhole size={14} strokeWidth={2} aria-hidden />}
+        {revealed ? "KEY VIEW" : "SHIELDED"}
+      </div>
+    </button>
   )
 }

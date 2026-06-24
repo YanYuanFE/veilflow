@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react"
-import { Rocket, RefreshCw, UserPlus, Upload, Plus, Pause, Play, Ban, Eye, Settings2, CalendarRange } from "lucide-react"
+import { useState, useMemo, useEffect, useCallback } from "react"
+import { Rocket, RefreshCw, Plus, Pause, Play, Ban, Eye, Settings2, CalendarRange, ChevronLeft, ChevronRight } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
-import { isAddress, formatUnits, type Address, type Hex } from "viem"
+import { isAddress, type Address, type Hex } from "viem"
 import { useAccount, usePublicClient } from "wagmi"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { toast } from "sonner"
@@ -10,7 +10,9 @@ import {
   useCreateManagerAndGetAddress,
   useBatchCreateVesting,
   useManagerMaxBatchSize,
-  useAllRecipients,
+  useAllRecipientsLength,
+  useAllRecipientsSliced,
+  useIsRecipient,
   useRecipientVestings,
   useAdminBatchDiscloseToParty,
   useManagerIsPausable,
@@ -41,9 +43,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Kicker, Notice } from "@/components/editorial"
 import { BalanceLine } from "@/components/balance-line"
-import { RecipientPreview } from "@/components/recipient-preview"
+import { RecipientImportPanel } from "@/components/recipient-import-panel"
 import { shortAddr, fmtTime } from "@/lib/format"
-import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
+import { parseEntries } from "@/lib/recipients"
 import { useNowSeconds } from "@/lib/use-now"
 import { patchDistribution, recordDisclosure, type Distribution } from "@/lib/api"
 import { err, randomSalt, numberConfig } from "./shared"
@@ -70,6 +72,8 @@ import {
   describeSchedule,
   useRepresentativeSchedule,
 } from "@/lib/vesting-schedule"
+
+const IMPORT_DUPLICATE_SCAN_BATCH = 40
 
 export function VestingDeployCard({ d }: { d: Distribution }) {
   const queryClient = useQueryClient()
@@ -154,7 +158,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
   const batchCreate = useBatchCreateVesting({ address: manager, encryptor: () => sdk.relayer })
   const confirm = useConfirmTx()
   const maxBatchQ = useManagerMaxBatchSize({ address: manager })
-  const recipientsQ = useAllRecipients({ address: manager })
+  const totalRecipientsQ = useAllRecipientsLength({ address: manager })
   const now = useNowSeconds()
   const startTs = numberConfig(d, "startTimestamp", 0)
   const endTs = numberConfig(d, "endTimestamp", 0)
@@ -165,16 +169,39 @@ export function VestingManageCard({ d }: { d: Distribution }) {
   const [input, setInput] = useState("")
   const [progress, setProgress] = useState<string>()
   const [error, setError] = useState<string>()
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const loadCsv = (file: File) => {
-    void readRecipientCsv(file).then((text) => setInput((v) => (v ? `${v}\n` : "") + text))
-  }
+  const [knownRecipients, setKnownRecipients] = useState<Set<string>>(new Set())
+  const [scannedRecipients, setScannedRecipients] = useState<Set<string>>(new Set())
+  const [unverifiedRecipients, setUnverifiedRecipients] = useState<Set<string>>(new Set())
+  const [scanCursor, setScanCursor] = useState(0)
+  const [scanError, setScanError] = useState<string>()
+  const [lastCreatedBatch, setLastCreatedBatch] = useState<{ count: number }>()
 
   const { entries, errors } = useMemo(() => parseEntries(input, decimals), [input, decimals])
-  const existing = new Set((recipientsQ.data ?? []).map((r) => r.toLowerCase()))
-  const recipientCount = recipientsQ.data?.length ?? 0
-  const fresh = entries.filter((e) => !existing.has(e.recipient.toLowerCase()))
+  const entryAddresses = useMemo(() => entries.map((e) => e.recipient), [entries])
+  const uniqueEntryAddresses = useMemo(() => {
+    const byKey = new Map<string, Address>()
+    entryAddresses.forEach((recipient) => byKey.set(recipient.toLowerCase(), recipient))
+    return Array.from(byKey.values())
+  }, [entryAddresses])
+  const uniqueEntryKeys = useMemo(() => uniqueEntryAddresses.map((r) => r.toLowerCase()), [uniqueEntryAddresses])
+  const pendingKeys = useMemo(
+    () => new Set(uniqueEntryKeys.filter((key) => !scannedRecipients.has(key) && !unverifiedRecipients.has(key))),
+    [uniqueEntryKeys, scannedRecipients, unverifiedRecipients],
+  )
+  const scanBatch = useMemo(() => uniqueEntryAddresses.slice(scanCursor, scanCursor + IMPORT_DUPLICATE_SCAN_BATCH), [uniqueEntryAddresses, scanCursor])
+  const completedScanCount = useMemo(
+    () => new Set([...scannedRecipients, ...unverifiedRecipients]).size,
+    [scannedRecipients, unverifiedRecipients],
+  )
+  const checkingDone = entries.length === 0 || completedScanCount >= uniqueEntryKeys.length
+  const existing = knownRecipients
+  const recipientCount = totalRecipientsQ.data ? Number(totalRecipientsQ.data) : 0
+  const fresh = entries.filter((e) => {
+    const key = e.recipient.toLowerCase()
+    return !existing.has(key) && !unverifiedRecipients.has(key)
+  })
+  const alreadyVestingCount = entries.filter((e) => existing.has(e.recipient.toLowerCase())).length
+  const hasUnverifiedRecipients = unverifiedRecipients.size > 0
   const batchTotal = fresh.reduce((a, e) => a + e.amount, 0n)
   // Chunk to the manager's max batch size — one tx per chunk (fallback 50 if unknown).
   const maxBatch = maxBatchQ.data && maxBatchQ.data > 0n ? Number(maxBatchQ.data) : 50
@@ -200,7 +227,8 @@ export function VestingManageCard({ d }: { d: Distribution }) {
 
   const onAdd = async () => {
     setError(undefined)
-    if (fresh.length === 0) return
+    if (!checkingDone || hasUnverifiedRecipients || fresh.length === 0) return
+    const createdCount = fresh.length
     try {
       // The manager pulls each grant from your confidential balance — approve it as operator once.
       setProgress("Approving manager (operator)…")
@@ -214,9 +242,11 @@ export function VestingManageCard({ d }: { d: Distribution }) {
         })
         await confirm(hash)
       }
-      await recipientsQ.refetch()
+      await totalRecipientsQ.refetch()
+      await queryClient.invalidateQueries({ queryKey: ["tokenops-sdk", "fhe-vesting"] })
       setInput("")
-      toast.success(`${fresh.length} vesting${fresh.length === 1 ? "" : "s"} created`)
+      setLastCreatedBatch({ count: createdCount })
+      toast.success(`${createdCount} vesting${createdCount === 1 ? "" : "s"} created`)
     } catch (e) {
       setError(err(e))
       toast.error(err(e))
@@ -233,15 +263,8 @@ export function VestingManageCard({ d }: { d: Distribution }) {
             <div>
               <CardTitle>Add recipients</CardTitle>
               <CardDescription>
-                One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
-                <button
-                  type="button"
-                  onClick={downloadRecipientTemplate}
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  download a template
-                </button>
-                . Each creates an on-chain vesting funded from your confidential balance.
+                Import address + amount rows, review the parse check, then create encrypted vestings funded from your
+                confidential balance.
               </CardDescription>
             </div>
             {d.status !== "live" && (
@@ -263,63 +286,136 @@ export function VestingManageCard({ d }: { d: Distribution }) {
               immediately part-unlocked (or fully, past the end). Each grant still pulls from your confidential balance.
             </Notice>
           )}
-          <textarea
-            className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-            placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
+          <RecipientImportPanel
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(v) => {
+              setInput(v)
+              setKnownRecipients(new Set())
+              setScannedRecipients(new Set())
+              setUnverifiedRecipients(new Set())
+              setScanCursor(0)
+              setScanError(undefined)
+              setLastCreatedBatch(undefined)
+            }}
+            entries={entries}
+            errors={errors}
+            decimals={decimals}
+            walletAddress={address}
+            issued={existing}
+            issuedLabel="Vesting"
+            pending={pendingKeys}
+            checkingCount={pendingKeys.size}
+            unverified={unverifiedRecipients}
+            unverifiedCount={unverifiedRecipients.size}
+            readyCount={checkingDone ? fresh.length : 0}
+            readyLabel="To create"
+            skippedCount={alreadyVestingCount}
+            skippedLabel="Already vesting"
+            batchTotal={batchTotal}
+            batchLabel="This batch"
+            batchDetail={
+              !checkingDone
+                ? `Checking existing vestings ${completedScanCount}/${uniqueEntryKeys.length}`
+                : hasUnverifiedRecipients
+                  ? `${unverifiedRecipients.size} recipient${unverifiedRecipients.size === 1 ? "" : "s"} need verification before creating`
+                  : batchTotal > 0n
+                    ? `${fresh.length} new vesting${fresh.length === 1 ? "" : "s"}${batchCount > 1 ? ` · ${batchCount} transactions (<= ${maxBatch}/tx)` : ""}`
+                    : undefined
+            }
+            previewLabel="Vestings preview"
           />
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              disabled={!address}
-              onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
-            >
-              <UserPlus />
-              Add my address
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) loadCsv(f)
-                e.target.value = ""
+          {scanBatch.length > 0 && (
+            <RecipientExistenceScan
+              manager={manager}
+              recipients={scanBatch}
+              onResult={(recipient, result) => {
+                const key = recipient.toLowerCase()
+                if (result === "unverified") {
+                  setUnverifiedRecipients((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
+                  setScannedRecipients((prev) => {
+                    if (!prev.has(key)) return prev
+                    const next = new Set(prev)
+                    next.delete(key)
+                    return next
+                  })
+                  return
+                }
+                setUnverifiedRecipients((prev) => {
+                  if (!prev.has(key)) return prev
+                  const next = new Set(prev)
+                  next.delete(key)
+                  return next
+                })
+                setScannedRecipients((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
+                if (result === "exists") {
+                  setKnownRecipients((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
+                } else {
+                  setKnownRecipients((prev) => {
+                    if (!prev.has(key)) return prev
+                    const next = new Set(prev)
+                    next.delete(key)
+                    return next
+                  })
+                }
               }}
+              onComplete={() =>
+                setScanCursor((cursor) =>
+                  cursor === scanCursor ? Math.min(uniqueEntryAddresses.length, cursor + IMPORT_DUPLICATE_SCAN_BATCH) : cursor,
+                )
+              }
+              onError={(message) => setScanError(message)}
             />
-            <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
-              <Upload />
-              Upload CSV
-            </Button>
-            <span className="text-muted-foreground">
-              {fresh.length} to add
-              {entries.length - fresh.length > 0 && ` · ${entries.length - fresh.length} already vesting`}
-              {errors.length > 0 && ` · ${errors.length} error${errors.length > 1 ? "s" : ""}`}
-            </span>
-          </div>
-          {errors.length > 0 && (
-            <ul className="space-y-0.5 text-xs text-destructive">
-              {errors.slice(0, 5).map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
           )}
           <BalanceLine token={d.token as Address} decimals={decimals} compareTo={batchTotal} />
-          {batchTotal > 0n && (
-            <p className="text-xs text-muted-foreground">
-              This batch · <span className="font-mono text-foreground">{formatUnits(batchTotal, decimals)}</span> across {fresh.length}
-              {batchCount > 1 && ` · ${batchCount} transactions (≤ ${maxBatch}/tx)`}
-            </p>
+          {hasUnverifiedRecipients && (
+            <Notice tone="void" className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                {unverifiedRecipients.size} recipient{unverifiedRecipients.size === 1 ? "" : "s"} could not be verified on-chain.
+                Retry the check before creating vestings.
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setKnownRecipients(new Set())
+                  setScannedRecipients(new Set())
+                  setUnverifiedRecipients(new Set())
+                  setScanCursor(0)
+                  setScanError(undefined)
+                }}
+              >
+                <RefreshCw />
+                Retry check
+              </Button>
+            </Notice>
           )}
-          <RecipientPreview entries={entries} issued={existing} decimals={decimals} issuedLabel="Vesting" />
-          <Button onClick={onAdd} disabled={fresh.length === 0 || !!progress}>
+          {lastCreatedBatch && (
+            <Notice tone="seal" className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                Created {lastCreatedBatch.count} vesting{lastCreatedBatch.count === 1 ? "" : "s"}. The recipients list has
+                been refreshed.
+              </span>
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href="#vesting-recipients">
+                  <Eye />
+                  View recipients
+                </a>
+              </Button>
+            </Notice>
+          )}
+          <Button onClick={onAdd} disabled={!checkingDone || hasUnverifiedRecipients || fresh.length === 0 || !!progress}>
             <Plus />
-            {progress ?? (fresh.length ? `Create ${fresh.length} vesting${fresh.length === 1 ? "" : "s"}` : "Create vestings")}
+            {progress ??
+              (!checkingDone
+                ? `Checking ${completedScanCount}/${uniqueEntryKeys.length}`
+                : hasUnverifiedRecipients
+                  ? "Verify recipients first"
+                  : fresh.length
+                    ? `Create ${fresh.length} vesting${fresh.length === 1 ? "" : "s"}`
+                    : "Create vestings")}
           </Button>
+          {scanError && <p className="text-xs text-destructive">{scanError}</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
@@ -329,12 +425,95 @@ export function VestingManageCard({ d }: { d: Distribution }) {
   )
 }
 
+type RecipientExistenceResult = "exists" | "missing" | "unverified"
+
+function RecipientExistenceScan({
+  manager,
+  recipients,
+  onResult,
+  onComplete,
+  onError,
+}: {
+  manager: Address
+  recipients: readonly Address[]
+  onResult: (recipient: Address, result: RecipientExistenceResult) => void
+  onComplete: () => void
+  onError: (message: string) => void
+}) {
+  const [scanState, setScanState] = useState<{ batchKey: string; results: Record<string, RecipientExistenceResult> }>({
+    batchKey: "",
+    results: {},
+  })
+  const batchKey = recipients.join(":").toLowerCase()
+  const results = useMemo(() => (scanState.batchKey === batchKey ? scanState.results : {}), [batchKey, scanState])
+
+  const onProbeResult = useCallback(
+    (recipient: Address, result: RecipientExistenceResult) => {
+      const key = recipient.toLowerCase()
+      setScanState((prev) => {
+        const current = prev.batchKey === batchKey ? prev.results : {}
+        if (current[key] === result) return prev
+        return { batchKey, results: { ...current, [key]: result } }
+      })
+      onResult(recipient, result)
+    },
+    [batchKey, onResult],
+  )
+
+  useEffect(() => {
+    if (recipients.length === 0) return
+    if (recipients.every((r) => results[r.toLowerCase()] !== undefined)) {
+      onComplete()
+    }
+  }, [onComplete, recipients, results])
+
+  return (
+    <>
+      {recipients.map((recipient) => (
+        <RecipientExistenceProbe key={recipient} manager={manager} recipient={recipient} onResult={onProbeResult} onError={onError} />
+      ))}
+    </>
+  )
+}
+
+function RecipientExistenceProbe({
+  manager,
+  recipient,
+  onResult,
+  onError,
+}: {
+  manager: Address
+  recipient: Address
+  onResult: (recipient: Address, result: RecipientExistenceResult) => void
+  onError: (message: string) => void
+}) {
+  const q = useIsRecipient({ address: manager, account: recipient })
+  useEffect(() => {
+    if (q.data !== undefined) onResult(recipient, q.data ? "exists" : "missing")
+  }, [q.data, recipient, onResult])
+  useEffect(() => {
+    if (!q.error) return
+    onError(`Could not verify ${shortAddr(recipient)}: ${err(q.error)}`)
+    onResult(recipient, "unverified")
+  }, [q.error, recipient, onError, onResult])
+  return null
+}
+
 // Recipients as a selectable data table — pick rows, then batch-disclose or batch-revoke
 // across the selection from the toolbar (top-right). Per-row Manage handles one recipient.
 function RecipientsTable({ d }: { d: Distribution }) {
   const manager = d.contractAddress as Address
   const queryClient = useQueryClient()
-  const recipientsQ = useAllRecipients({ address: manager })
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageSize, setPageSize] = useState(25)
+  const totalQ = useAllRecipientsLength({ address: manager })
+  const total = totalQ.data ?? 0n
+  const totalNumber = total > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(total)
+  const pageCount = Math.max(1, Math.ceil(totalNumber / pageSize))
+  const safePageIndex = Math.min(pageIndex, pageCount - 1)
+  const sliceStart = BigInt(safePageIndex * pageSize)
+  const sliceEnd = totalNumber > 0 ? BigInt(Math.min(totalNumber, (safePageIndex + 1) * pageSize)) : 0n
+  const recipientsQ = useAllRecipientsSliced({ address: manager, start: sliceStart, end: sliceEnd })
   const data = useMemo(() => (recipientsQ.data ?? []) as Address[], [recipientsQ.data])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
@@ -392,65 +571,135 @@ function RecipientsTable({ d }: { d: Distribution }) {
   const afterBatch = () => {
     setRowSelection({})
     void queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
+    void queryClient.invalidateQueries({ queryKey: ["tokenops-sdk", "fhe-vesting"] })
+    void totalQ.refetch()
     void recipientsQ.refetch()
   }
+  const rangeStart = totalNumber === 0 ? 0 : safePageIndex * pageSize + 1
+  const rangeEnd = Math.min(totalNumber, (safePageIndex + 1) * pageSize)
 
   return (
-    <Card>
+    <Card id="vesting-recipients">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>Recipients ({data.length})</CardTitle>
+            <CardTitle>Recipients ({total.toString()})</CardTitle>
             <CardDescription>On-chain vesting recipients. Amounts are encrypted — not shown.</CardDescription>
           </div>
-          {selected.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{selected.length} selected</span>
-              <Sheet onOpenChange={(o) => !o && setRowSelection({})}>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Eye />
-                    Disclose
-                  </Button>
-                </SheetTrigger>
-                <SheetContent aria-describedby={undefined}>
-                  <SheetTitle className="sr-only">Disclose to auditor</SheetTitle>
-                  <div className="p-6 pt-12">
-                    <VestingDisclosureCard d={d} recipients={selected} />
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <VestingRevokeCard d={d} recipients={selected} onDone={afterBatch} bare />
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v))
+                setPageIndex(0)
+                setRowSelection({})
+              }}
+            >
+              <SelectTrigger size="sm" aria-label="Recipients per page">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[25, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size} / page
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selected.length > 0 && (
+              <>
+                <span className="text-xs text-muted-foreground">{selected.length} selected on this page</span>
+                <Sheet onOpenChange={(o) => !o && setRowSelection({})}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Eye />
+                      Disclose
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent aria-describedby={undefined}>
+                    <SheetTitle className="sr-only">Disclose to auditor</SheetTitle>
+                    <div className="p-6 pt-12">
+                      <VestingDisclosureCard d={d} recipients={selected} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+                <VestingRevokeCard d={d} recipients={selected} onDone={afterBatch} bare />
+              </>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? (
+        {totalNumber === 0 && !totalQ.isLoading ? (
           <p className="text-sm text-muted-foreground">No recipients yet.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((h) => (
-                    <TableHead key={h.id} className={h.id === "actions" ? "text-right" : undefined}>
-                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="space-y-3">
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((hg) => (
+                  <TableRow key={hg.id}>
+                    {hg.headers.map((h) => (
+                      <TableHead key={h.id} className={h.id === "actions" ? "text-right" : undefined}>
+                        {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                {data.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={columns.length} className="py-6 text-center text-sm text-muted-foreground">
+                      {recipientsQ.isLoading ? "Loading recipients..." : "No recipients on this page."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                {rangeStart}-{rangeEnd} of {total.toString()}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  aria-label="Previous recipients page"
+                  disabled={safePageIndex === 0}
+                  onClick={() => {
+                    setPageIndex((p) => Math.max(0, p - 1))
+                    setRowSelection({})
+                  }}
+                >
+                  <ChevronLeft />
+                </Button>
+                <span className="min-w-14 text-center tabular-nums">
+                  {safePageIndex + 1} / {pageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  aria-label="Next recipients page"
+                  disabled={safePageIndex >= pageCount - 1 || total > BigInt(Number.MAX_SAFE_INTEGER)}
+                  onClick={() => {
+                    setPageIndex((p) => Math.min(pageCount - 1, p + 1))
+                    setRowSelection({})
+                  }}
+                >
+                  <ChevronRight />
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

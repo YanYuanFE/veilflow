@@ -1,26 +1,21 @@
-/* Faithful reproduction of the Variant-designed VeilFlow landing.
-   All rules are scoped under `.vl` so the global resets/elements (body, section,
-   footer) don't leak into the rest of the app.
-   Geist/Geist Mono @font-face are loaded globally in index.css. */
+/* VeilFlow landing, scoped under `.vl`, but grounded in the shared app tokens. */
 
 .vl {
-  --vl-bg: #fbf9f2;
-  --vl-fg: #262019;
-  --vl-muted: #6f675a;
-  --vl-border: rgba(38, 32, 25, 0.1);
-  --vl-glass: rgba(38, 32, 25, 0.035);
-  --vl-gold: #f4c61a;
-  --vl-font-main: "Geist Variable", sans-serif;
-  --vl-font-display: "General Sans", "Geist Variable", sans-serif;
-  --vl-font-mono: "Geist Mono Variable", monospace;
-
-  /* Map the shared Logomark's tokens onto this page's palette */
-  --seal: var(--vl-gold);
-  --background: var(--vl-bg);
+  --vl-bg: var(--background);
+  --vl-fg: var(--foreground);
+  --vl-muted: var(--muted-foreground);
+  --vl-border: var(--border);
+  --vl-surface: var(--card);
+  --vl-glass: color-mix(in oklch, var(--muted) 60%, transparent);
+  --vl-gold: var(--seal);
+  --vl-font-main: var(--font-sans);
+  --vl-font-display: var(--font-display);
+  --vl-font-mono: var(--font-mono);
+  --vl-radius: var(--radius);
 
   position: relative;
   min-height: 100vh;
-  background-color: var(--vl-bg);
+  background-color: var(--background);
   color: var(--vl-fg);
   font-family: var(--vl-font-main);
   line-height: 1.5;
@@ -62,7 +57,8 @@
   justify-content: space-between;
   align-items: center;
   z-index: 100;
-  background: linear-gradient(to bottom, rgba(251, 249, 242, 0.85), transparent);
+  background: color-mix(in oklch, var(--background) 88%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
   backdrop-filter: blur(10px);
 }
 
@@ -102,7 +98,7 @@
   background: var(--vl-glass);
   border: 1px solid var(--vl-border);
   padding: 8px 16px;
-  border-radius: 100px;
+  border-radius: calc(var(--vl-radius) * 1.4);
   color: var(--vl-fg);
   font-family: var(--vl-font-mono);
   font-size: 0.75rem;
@@ -111,8 +107,8 @@
   transition: 0.3s;
 }
 .vl-btn-wallet:hover {
-  border-color: rgba(0, 0, 0, 0.3);
-  background: rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in oklch, var(--foreground) 25%, var(--border));
+  background: var(--muted);
 }
 
 /* Content sits above the canvas */
@@ -176,8 +172,8 @@
 .vl-btn-primary {
   background: var(--vl-fg);
   color: var(--vl-bg);
-  padding: 18px 40px;
-  border-radius: 100px;
+  padding: 16px 28px;
+  border-radius: calc(var(--vl-radius) * 1.4);
   font-weight: 700;
   text-decoration: none;
   display: flex;
@@ -188,8 +184,8 @@
     box-shadow 0.3s;
 }
 .vl-btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 30px -18px rgba(38, 32, 25, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -20px color-mix(in oklch, var(--foreground) 35%, transparent);
 }
 
 .vl-btn-secondary {
@@ -214,11 +210,11 @@
 }
 
 .vl-badge {
-  background: rgba(255, 255, 255, 0.8);
+  background: color-mix(in oklch, var(--card) 82%, transparent);
   backdrop-filter: blur(12px);
   border: 1px solid var(--vl-border);
   padding: 12px 20px;
-  border-radius: 100px;
+  border-radius: calc(var(--vl-radius) * 1.8);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -248,11 +244,11 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: calc(var(--vl-radius) * 1.4);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in oklch, var(--vl-gold) 22%, transparent);
+  background: var(--seal-soft);
   color: var(--vl-fg);
   font-family: var(--vl-font-mono);
   font-size: 0.8rem;
@@ -277,7 +273,7 @@
   width: 8px;
   height: 8px;
   background: var(--vl-gold);
-  border-radius: 50%;
+  border-radius: 999px;
 }
 
 /* Scroll indicator */
@@ -333,8 +329,8 @@
   gap: 12px;
   padding: 12px 18px;
   border: 1px solid var(--vl-border);
-  border-radius: 100px;
-  background: rgba(255, 255, 255, 0.7);
+  border-radius: calc(var(--vl-radius) * 1.8);
+  background: color-mix(in oklch, var(--card) 78%, transparent);
   backdrop-filter: blur(8px);
   margin-bottom: 40px;
   max-width: 100%;
@@ -370,9 +366,9 @@
 }
 .vl-instrument-card {
   border: 1px solid var(--vl-border);
-  border-radius: clamp(16px, 2vw, 24px);
+  border-radius: calc(var(--vl-radius) * 2);
   padding: clamp(28px, 3vw, 40px);
-  background: #fffdf6;
+  background: var(--vl-surface);
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -380,8 +376,8 @@
   position: relative;
 }
 .vl-instrument-card:hover {
-  border-color: rgba(38, 32, 25, 0.28);
-  transform: translateY(-3px);
+  border-color: color-mix(in oklch, var(--foreground) 25%, var(--border));
+  transform: translateY(-2px);
 }
 .vl-instrument-top {
   display: flex;
@@ -394,7 +390,10 @@
   color: var(--vl-muted);
   letter-spacing: 0.16em;
 }
-.vl-instrument-top svg {
+.vl-card-icon {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.6;
   color: var(--vl-gold);
 }
 .vl-instrument-card h3 {
@@ -442,7 +441,7 @@
 
 .vl-feature-card {
   border: 1px solid var(--vl-border);
-  border-radius: clamp(16px, 2vw, 24px);
+  border-radius: calc(var(--vl-radius) * 2);
   padding: clamp(24px, 3vw, 40px);
   background: var(--vl-glass);
   transition: 0.4s;
@@ -450,8 +449,8 @@
   overflow: hidden;
 }
 .vl-feature-card:hover {
-  border-color: rgba(38, 32, 25, 0.28);
-  background: rgba(38, 32, 25, 0.05);
+  border-color: color-mix(in oklch, var(--foreground) 25%, var(--border));
+  background: var(--muted);
 }
 .vl-feature-card h3 {
   font-size: 1.4rem;
@@ -467,18 +466,91 @@
   color: var(--vl-gold);
 }
 
+/* Why confidential — one strong statement plus the concrete leaks it prevents. */
+.vl-leak-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 32px;
+  align-items: stretch;
+  border-block: 1px solid var(--vl-border);
+}
+.vl-leak-statement {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: clamp(28px, 4vw, 48px) 0;
+}
+.vl-leak-statement p {
+  max-width: 16ch;
+  margin: 0;
+  color: var(--vl-fg);
+  font-family: var(--vl-font-display);
+  font-size: clamp(1.75rem, 3.5vw, 3rem);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+.vl-leak-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 1px solid var(--vl-border);
+}
+.vl-leak-list li {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 20px;
+  padding: 28px 0 28px 32px;
+  color: var(--vl-muted);
+  font-size: clamp(1rem, 1.35vw, 1.1rem);
+  line-height: 1.5;
+}
+.vl-leak-list li + li {
+  border-top: 1px solid var(--vl-border);
+}
+.vl-leak-list span,
+.vl-layer-meta dt {
+  color: var(--vl-muted);
+  font-family: var(--vl-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.vl-feature-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.vl-layer-meta {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+.vl-layer-meta div {
+  display: grid;
+  gap: 5px;
+}
+.vl-layer-meta dd {
+  margin: 0;
+  color: var(--vl-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
 /* Console preview */
 .vl-console {
-  background: #fffdf6;
+  background: var(--vl-surface);
   border: 1px solid var(--vl-border);
-  border-radius: 12px;
+  border-radius: calc(var(--vl-radius) * 2);
   width: 100%;
   margin-top: 60px;
   overflow: hidden;
-  box-shadow: 0 30px 70px -45px rgba(38, 32, 25, 0.25);
+  box-shadow: 0 24px 56px -42px color-mix(in oklch, var(--foreground) 38%, transparent);
 }
 .vl-console-header {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--muted);
   padding: 12px 20px;
   display: flex;
   align-items: center;
@@ -502,30 +574,53 @@
   font-size: 0.8rem;
 }
 .vl-row {
+  appearance: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr 1fr;
   padding: 16px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  transition: background 0.2s;
-  cursor: crosshair;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  transition: background 0.18s ease-out, color 0.18s ease-out;
+  cursor: pointer;
 }
 .vl-row.vl-row-head {
   border-bottom: 2px solid var(--vl-border);
   cursor: default;
 }
-.vl-row:not(.vl-row-head):hover {
-  background: rgba(0, 0, 0, 0.02);
+.vl-row:not(.vl-row-head):hover,
+.vl-row:not(.vl-row-head):focus-visible,
+.vl-row[aria-pressed="true"] {
+  background: var(--muted);
+  outline: none;
 }
-.vl-row:not(.vl-row-head):hover .vl-encrypted-val {
+.vl-row:not(.vl-row-head):focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--ring) 45%, transparent);
+}
+.vl-row:not(.vl-row-head):hover .vl-encrypted-val,
+.vl-row:not(.vl-row-head):focus-visible .vl-encrypted-val,
+.vl-row[aria-pressed="true"] .vl-encrypted-val {
   color: var(--vl-gold);
+  letter-spacing: 0;
 }
 .vl-encrypted-val {
   color: var(--vl-muted);
-  letter-spacing: 0.1em;
-  transition: color 0.3s;
+  letter-spacing: 0.08em;
+  transition: color 0.18s ease-out, letter-spacing 0.18s ease-out;
 }
 .vl-status-shielded {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
   color: var(--vl-gold);
+}
+.vl-status-shielded svg {
+  flex: 0 0 auto;
 }
 .vl-label {
   color: var(--vl-muted);
@@ -601,6 +696,22 @@
     padding-right: 24px;
   }
 
+  .vl-leak-panel {
+    grid-template-columns: 1fr;
+  }
+  .vl-leak-statement {
+    padding-bottom: 0;
+  }
+  .vl-leak-statement p {
+    max-width: 20ch;
+  }
+  .vl-leak-list {
+    border-left: 0;
+  }
+  .vl-leak-list li {
+    padding-left: 0;
+  }
+
   .vl-footer {
     padding: 64px 24px;
   }
@@ -625,7 +736,7 @@
   }
   /* Trust badge spans full width on phones, keeps the two lines readable. */
   .vl-trust {
-    border-radius: 16px;
+    border-radius: calc(var(--vl-radius) * 2);
     margin-bottom: 32px;
   }
   /* Stack the two CTAs vertically so neither gets cramped. */
@@ -661,6 +772,12 @@
     font-size: 0.55rem;
   }
 
+  .vl-leak-list li {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 12px;
+    padding-block: 20px;
+  }
+
   .vl-scroll-indicator {
     display: none;
   }
@@ -681,6 +798,10 @@
   .vl-badge {
     animation: none;
     opacity: 1;
+    transform: none;
+  }
+  .vl-btn-primary:hover,
+  .vl-instrument-card:hover {
     transform: none;
   }
 }

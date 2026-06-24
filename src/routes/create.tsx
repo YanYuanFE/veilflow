@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Send, CalendarClock, Split, FilePlus2, type LucideIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useMutation } from "@tanstack/react-query"
@@ -9,11 +9,13 @@ import { useIsConfidential } from "@zama-fhe/react-sdk"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DateTimePicker } from "@/components/ui/datetime-picker"
 import { Kicker, Folio, Notice } from "@/components/editorial"
 import { FeeDisclosure } from "@/components/fee-disclosure"
 import { cn } from "@/lib/utils"
-import { slugify } from "@/lib/format"
+import { fmtTime, slugify } from "@/lib/format"
 import { useNowSeconds } from "@/lib/use-now"
 import { useTokenMeta } from "@/lib/tokens"
 import { createDistribution, type DistributionType } from "@/lib/api"
@@ -121,10 +123,41 @@ export function Create() {
     if (!slugEdited) setSlug(slugify(v))
   }
 
+  const normalizedSlug = slugify(slug)
   const baseValid =
-    isConnected && !!name.trim() && !!slug && validToken && isConfidential && tokenMeta.decimals !== undefined
+    isConnected && !!name.trim() && !!normalizedSlug && validToken && isConfidential && tokenMeta.decimals !== undefined
   const canSubmit =
     baseValid && (type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : type === "disperse" ? true : false)
+  const selectedType = TYPES.find((t) => t.id === type)
+  const tokenLabel =
+    !token
+      ? "Paste a confidential token"
+      : !validToken
+        ? "Invalid address"
+        : confCheck.isLoading
+          ? "Checking token"
+          : confCheck.data === false
+            ? "Not confidential"
+            : isConfidential && tokenMeta.symbol
+              ? `${tokenMeta.symbol}${tokenMeta.name ? ` · ${tokenMeta.name}` : ""}`
+              : isConfidential
+                ? "Confidential token verified"
+                : "Waiting for token check"
+  const termsReady =
+    type === "airdrop" ? validWindow : type === "vesting" ? vestingValid : type === "disperse" ? true : false
+  const submitHint = !isConnected
+    ? "Connect your wallet to create a distribution."
+    : !type
+      ? "Choose an instrument first."
+      : !name.trim()
+        ? "Name the distribution."
+        : !normalizedSlug
+          ? "Set a public slug."
+          : !validToken || !isConfidential || tokenMeta.decimals === undefined
+            ? "Verify a confidential ERC-7984 token."
+            : !termsReady
+              ? "Complete the terms before creating the draft."
+              : "Draft will open on the distribution detail page for deployment and recipients."
 
   return (
     <div className="space-y-10">
@@ -136,9 +169,9 @@ export function Create() {
         </p>
       </header>
 
-      {/* Step 1 — instrument */}
+      {/* Instrument */}
       <section className="space-y-4">
-        <Kicker>01 / Choose an instrument</Kicker>
+        <Kicker>Instrument</Kicker>
         <div className="grid gap-3 sm:grid-cols-3">
           {TYPES.map((t, i) => (
             <button
@@ -173,156 +206,345 @@ export function Create() {
         </div>
       </section>
 
-      {/* Step 2 — details */}
-      <section className={cn("space-y-4", !type && "opacity-50")} aria-disabled={!type}>
-        <Kicker>02 / Details</Kicker>
-        <div className="space-y-5 rounded-md border border-border bg-card p-6">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" placeholder="Series A investor airdrop" value={name} onChange={(e) => onName(e.target.value)} disabled={!type} />
-          </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div className="space-y-6">
+          {/* Details */}
+          <section className={cn("space-y-4", !type && "opacity-50")} aria-disabled={!type}>
+            <Kicker>Details</Kicker>
+            <Card>
+              <CardHeader>
+                <CardTitle>Name, link, and token</CardTitle>
+                <CardDescription>
+                  This creates the distribution record. Deployment and recipients happen next, on the detail page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    placeholder="Series A investor airdrop"
+                    value={name}
+                    onChange={(e) => onName(e.target.value)}
+                    disabled={!type}
+                  />
+                </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="slug">Slug</Label>
-            <Input
-              id="slug"
-              placeholder="series-a-airdrop"
-              value={slug}
-              onChange={(e) => {
-                setSlugEdited(true)
-                // Permissive while typing (keep dashes); normalized on submit.
-                setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-"))
-              }}
-              disabled={!type}
-            />
-            <p className="text-xs text-muted-foreground">
-              Public claim link · <span className="font-mono">/claim/{slug || "your-slug"}</span>
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="token">Confidential token</Label>
-            <Input id="token" placeholder="0x… (ERC-7984 address)" value={token} onChange={(e) => setToken(e.target.value.trim())} disabled={!type} />
-            {token && !validToken && <p className="text-sm text-destructive">Invalid address.</p>}
-            {validToken && confCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
-            {validToken && confCheck.data === false && (
-              <p className="text-sm text-destructive">
-                Not a confidential ERC-7984 token. Use a confidential token address (e.g. cUSDT 0x4E7B…4491).
-              </p>
-            )}
-            {validToken && confCheck.error && <p className="text-sm text-destructive">Couldn't verify token: {confCheck.error.message}</p>}
-            {validToken && isConfidential && tokenMeta.symbol && (
-              <p className="text-xs text-muted-foreground">
-                ✓ {tokenMeta.symbol}
-                {tokenMeta.name ? ` · ${tokenMeta.name}` : ""} · {tokenMeta.decimals} decimals
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Need one?{" "}
-              <a className="underline decoration-border underline-offset-2 hover:decoration-foreground" href="/wrap">
-                Wrap an ERC-20 first
-              </a>
-              .
-            </p>
-          </div>
-
-          {type === "airdrop" && (
-            <div className="space-y-4 border-t border-border pt-5">
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="start">Claim opens</Label>
-                  <DateTimePicker id="start" value={start} onChange={setStart} placeholder="Opens at deploy" />
-                  <p className="text-xs text-muted-foreground">Leave empty = opens the moment it's deployed.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end">Claim closes</Label>
-                  <DateTimePicker id="end" value={end} onChange={setEnd} placeholder="Pick close time" />
-                  {end && !validWindow && (
-                    <p className="text-sm text-destructive">Must be in the future{start ? " and after the open time" : ""}.</p>
-                  )}
-                </div>
-              </div>
-              <label className="flex items-center gap-2.5 text-sm text-foreground">
-                <input type="checkbox" className="size-4 accent-seal" checked={canExtend} onChange={(e) => setCanExtend(e.target.checked)} />
-                Allow extending the claim window later
-              </label>
-            </div>
-          )}
-
-          {type === "vesting" && (
-            <div className="space-y-4 border-t border-border pt-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="vstart">Vesting starts</Label>
-                  <DateTimePicker id="vstart" value={start} onChange={setStart} placeholder="Pick start" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vend">Vesting ends</Label>
-                  <DateTimePicker id="vend" value={end} onChange={setEnd} placeholder="Pick end" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cliff">Cliff (days)</Label>
-                  <Input id="cliff" inputMode="numeric" value={cliffDays} onChange={(e) => setCliffDays(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cliff-unlock">Cliff unlock (%)</Label>
-                  <Input id="cliff-unlock" inputMode="decimal" value={cliffAmountPct} onChange={(e) => setCliffAmountPct(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="interval">Release interval (days)</Label>
-                  <Input id="interval" inputMode="numeric" value={intervalDays} onChange={(e) => setIntervalDays(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="initial">Initial unlock (%)</Label>
-                  <Input id="initial" inputMode="decimal" value={initialUnlockPct} onChange={(e) => setInitialUnlockPct(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timelock">Timelock (days)</Label>
-                  <Input id="timelock" inputMode="numeric" value={timelockDays} onChange={(e) => setTimelockDays(e.target.value)} />
-                </div>
-                <label className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
-                  <input type="checkbox" className="size-4 accent-seal" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
-                  Revocable by admin
-                </label>
-                <label className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
-                  <input type="checkbox" className="size-4 accent-seal" checked={splitEnabled} onChange={(e) => setSplitEnabled(e.target.checked)} />
-                  Allow recipients to split
-                </label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                These terms apply to every recipient; you add recipients (with per-recipient amounts) after deploying. Initial
-                unlock releases at start, cliff unlock releases when the cliff ends, the remainder vests linearly each interval;
-                timelock delays when released tokens become claimable.
-              </p>
-              {(start || end || cliffDays !== "0" || initialUnlockPct !== "0" || cliffAmountPct !== "0" || timelockDays !== "0") &&
-                !vestingValid && (
-                  <p className="text-sm text-destructive">
-                    Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial + cliff
-                    unlock 0–100%, timelock ≥ 0.
+                  <Label htmlFor="slug">Slug</Label>
+                  <Input
+                    id="slug"
+                    placeholder="series-a-airdrop"
+                    value={slug}
+                    onChange={(e) => {
+                      setSlugEdited(true)
+                      // Permissive while typing (keep dashes); normalized on submit.
+                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-"))
+                    }}
+                    disabled={!type}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Public claim link · <span className="font-mono">/claim/{normalizedSlug || "your-slug"}</span>
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="token">Confidential token</Label>
+                  <Input
+                    id="token"
+                    placeholder="0x… (ERC-7984 address)"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value.trim())}
+                    disabled={!type}
+                  />
+                  {token && !validToken && <p className="text-sm text-destructive">Invalid address.</p>}
+                  {validToken && confCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
+                  {validToken && confCheck.data === false && (
+                    <p className="text-sm text-destructive">
+                      Not a confidential ERC-7984 token. Use a confidential token address (e.g. cUSDT 0x4E7B…4491).
+                    </p>
+                  )}
+                  {validToken && confCheck.error && (
+                    <p className="text-sm text-destructive">Couldn't verify token: {confCheck.error.message}</p>
+                  )}
+                  {validToken && isConfidential && tokenMeta.symbol && (
+                    <p className="text-xs text-muted-foreground">
+                      ✓ {tokenMeta.symbol}
+                      {tokenMeta.name ? ` · ${tokenMeta.name}` : ""} · {tokenMeta.decimals} decimals
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Need one?{" "}
+                    <a className="underline decoration-border underline-offset-2 hover:decoration-foreground" href="/wrap">
+                      Wrap an ERC-20 first
+                    </a>
+                    .
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* Terms */}
+          <section className={cn("space-y-4", !type && "opacity-50")} aria-disabled={!type}>
+            <Kicker>Terms</Kicker>
+            <Card>
+              <CardHeader>
+                <CardTitle>{selectedType ? `${selectedType.title} terms` : "Distribution terms"}</CardTitle>
+                <CardDescription>
+                  Terms define the claim window or vesting schedule. Recipients and encrypted amounts are added after the
+                  draft is created.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {!type && <Notice tone="muted">Choose an instrument to see the terms this distribution needs.</Notice>}
+
+                {type === "airdrop" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="start">Claim opens</Label>
+                        <DateTimePicker id="start" value={start} onChange={setStart} placeholder="Opens at deploy" />
+                        <p className="text-xs text-muted-foreground">Leave empty = opens the moment it's deployed.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="end">Claim closes</Label>
+                        <DateTimePicker id="end" value={end} onChange={setEnd} placeholder="Pick close time" />
+                        {end && !validWindow && (
+                          <p className="text-sm text-destructive">
+                            Must be in the future{start ? " and after the open time" : ""}.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-sm text-foreground">
+                      <Checkbox id="can-extend" checked={canExtend} onCheckedChange={(v) => setCanExtend(v === true)} />
+                      <Label htmlFor="can-extend" className="font-normal">
+                        Allow extending the claim window later
+                      </Label>
+                    </div>
+                  </div>
                 )}
-            </div>
-          )}
 
-          {type === "disperse" && (
-            <Notice tone="muted">
-              Disperse sends tokens directly to recipients in one batch — no claim step, no schedule. You'll add recipients
-              &amp; amounts after creating.
-            </Notice>
-          )}
+                {type === "vesting" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="vstart">Vesting starts</Label>
+                        <DateTimePicker id="vstart" value={start} onChange={setStart} placeholder="Pick start" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vend">Vesting ends</Label>
+                        <DateTimePicker id="vend" value={end} onChange={setEnd} placeholder="Pick end" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cliff">Cliff (days)</Label>
+                        <Input id="cliff" inputMode="numeric" value={cliffDays} onChange={(e) => setCliffDays(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cliff-unlock">Cliff unlock (%)</Label>
+                        <Input
+                          id="cliff-unlock"
+                          inputMode="decimal"
+                          value={cliffAmountPct}
+                          onChange={(e) => setCliffAmountPct(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="interval">Release interval (days)</Label>
+                        <Input
+                          id="interval"
+                          inputMode="numeric"
+                          value={intervalDays}
+                          onChange={(e) => setIntervalDays(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="initial">Initial unlock (%)</Label>
+                        <Input
+                          id="initial"
+                          inputMode="decimal"
+                          value={initialUnlockPct}
+                          onChange={(e) => setInitialUnlockPct(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="timelock">Timelock (days)</Label>
+                        <Input
+                          id="timelock"
+                          inputMode="numeric"
+                          value={timelockDays}
+                          onChange={(e) => setTimelockDays(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
+                        <Checkbox id="revocable" checked={revocable} onCheckedChange={(v) => setRevocable(v === true)} />
+                        <Label htmlFor="revocable" className="font-normal">
+                          Revocable by admin
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
+                        <Checkbox
+                          id="split-enabled"
+                          checked={splitEnabled}
+                          onCheckedChange={(v) => setSplitEnabled(v === true)}
+                        />
+                        <Label htmlFor="split-enabled" className="font-normal">
+                          Allow recipients to split
+                        </Label>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      These terms apply to every recipient; you add recipients (with per-recipient amounts) after deploying.
+                      Initial unlock releases at start, cliff unlock releases when the cliff ends, the remainder vests linearly
+                      each interval; timelock delays when released tokens become claimable.
+                    </p>
+                    {(start ||
+                      end ||
+                      cliffDays !== "0" ||
+                      initialUnlockPct !== "0" ||
+                      cliffAmountPct !== "0" ||
+                      timelockDays !== "0") &&
+                      !vestingValid && (
+                        <p className="text-sm text-destructive">
+                          Check the schedule: end after start &amp; in the future, cliff ≤ duration, interval ≥ 1 day, initial
+                          + cliff unlock 0–100%, timelock ≥ 0.
+                        </p>
+                      )}
+                  </div>
+                )}
 
-          {type && address && <FeeDisclosure type={type} creator={address} />}
-
-          <div className="flex items-center gap-4 border-t border-border pt-5">
-            <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>
-              <FilePlus2 />
-              {create.isPending ? "Creating draft…" : "Create draft"}
-            </Button>
-            {!isConnected && <span className="text-sm text-muted-foreground">Connect your wallet to create a distribution.</span>}
-          </div>
-          {create.error && <p className="text-sm text-destructive">{err(create.error)}</p>}
+                {type === "disperse" && (
+                  <Notice tone="muted">
+                    Disperse sends tokens directly to recipients in one batch — no claim step, no schedule. You'll add recipients
+                    &amp; amounts after creating.
+                  </Notice>
+                )}
+              </CardContent>
+            </Card>
+          </section>
         </div>
-      </section>
+
+        <aside className="space-y-4 lg:sticky lg:top-28">
+          <Kicker>Review</Kicker>
+          <Card>
+            <CardHeader>
+              <CardTitle>Draft summary</CardTitle>
+              <CardDescription>Confirm the setup before opening the deploy workflow.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <ReviewRow label="Instrument" value={selectedType?.title ?? "Not selected"} ready={!!type} />
+                <ReviewRow label="Name" value={name.trim() || "Untitled"} ready={!!name.trim()} />
+                <ReviewRow label="Claim link" value={`/claim/${normalizedSlug || "your-slug"}`} ready={!!normalizedSlug} mono />
+                <ReviewRow label="Token" value={tokenLabel} ready={validToken && isConfidential && tokenMeta.decimals !== undefined} />
+                <ReviewRow
+                  label="Terms"
+                  value={
+                    <TermsSummary
+                      type={type}
+                      startTs={startTs}
+                      endTs={endTs}
+                      canExtend={canExtend}
+                      cliffDays={cliffDays}
+                      cliffAmountPct={cliffAmountPct}
+                      intervalDays={intervalDays}
+                      initialUnlockPct={initialUnlockPct}
+                      timelockDays={timelockDays}
+                      revocable={revocable}
+                      splitEnabled={splitEnabled}
+                    />
+                  }
+                  ready={termsReady}
+                />
+              </div>
+
+              {type && address && <FeeDisclosure type={type} creator={address} />}
+
+              <div className="space-y-3 border-t border-border pt-4">
+                <Button className="w-full" onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>
+                  <FilePlus2 />
+                  {create.isPending ? "Creating draft…" : "Create draft"}
+                </Button>
+                <p className={cn("text-xs leading-relaxed", canSubmit ? "text-muted-foreground" : "text-destructive")}>
+                  {submitHint}
+                </p>
+                {create.error && <p className="text-sm text-destructive">{err(create.error)}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
     </div>
+  )
+}
+
+function ReviewRow({
+  label,
+  value,
+  ready,
+  mono,
+}: {
+  label: string
+  value: ReactNode
+  ready: boolean
+  mono?: boolean
+}) {
+  return (
+    <div className="grid gap-1 border-b border-border pb-3 last:border-b-0 last:pb-0">
+      <div className="flex items-center justify-between gap-3">
+        <Kicker className="tracking-[0.12em]">{label}</Kicker>
+        <span className={cn("size-1.5 rounded-full", ready ? "bg-seal" : "bg-muted-foreground")} aria-hidden />
+      </div>
+      <div className={cn("text-sm leading-relaxed text-foreground", mono && "font-mono text-xs break-all")}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function TermsSummary({
+  type,
+  startTs,
+  endTs,
+  canExtend,
+  cliffDays,
+  cliffAmountPct,
+  intervalDays,
+  initialUnlockPct,
+  timelockDays,
+  revocable,
+  splitEnabled,
+}: {
+  type?: DistributionType
+  startTs: number | null
+  endTs: number | null
+  canExtend: boolean
+  cliffDays: string
+  cliffAmountPct: string
+  intervalDays: string
+  initialUnlockPct: string
+  timelockDays: string
+  revocable: boolean
+  splitEnabled: boolean
+}) {
+  if (!type) return <>Choose an instrument.</>
+  if (type === "disperse") return <>Direct encrypted batch. No claim page or schedule.</>
+  if (type === "airdrop") {
+    return (
+      <>
+        Opens {startTs ? fmtTime(startTs) : "at deploy"} · closes {endTs ? fmtTime(endTs) : "not set"}
+        {canExtend ? " · extendable" : ""}
+      </>
+    )
+  }
+  return (
+    <>
+      {startTs ? fmtTime(startTs) : "Start not set"} → {endTs ? fmtTime(endTs) : "end not set"} ·{" "}
+      {initialUnlockPct}% initial · {cliffDays}d cliff / {cliffAmountPct}% · every {intervalDays}d
+      {timelockDays !== "0" ? ` · ${timelockDays}d timelock` : ""}
+      {revocable ? " · revocable" : ""}
+      {splitEnabled ? " · splitting allowed" : ""}
+    </>
   )
 }

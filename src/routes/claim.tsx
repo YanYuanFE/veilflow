@@ -13,6 +13,8 @@ import {
   useAirdropIsSignatureClaimed,
   useAirdropIsSignatureValid,
   useAirdropIsPaused,
+  useAirdropStartTime,
+  useAirdropEndTime,
 } from "@tokenops/sdk/fhe-airdrop/react"
 import {
   useRecipientVestings,
@@ -98,12 +100,8 @@ export function Claim() {
   const theme = parseTheme(d.theme)
   const decimals = typeof d.config.decimals === "number" ? d.config.decimals : 6
   const start = typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null
-  const end = typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null
   const notStarted = start != null && now < start
-  const ended = end != null && now > end
   const supported = d.type === "airdrop" || d.type === "vesting"
-  // Airdrop's window closes claiming; vesting stays claimable after the end (fully vested).
-  const airdropBlocked = d.type === "airdrop" && (notStarted || ended)
 
   return (
     <ClaimFrame theme={theme} brandName={d.name}>
@@ -122,13 +120,13 @@ export function Claim() {
         </header>
 
         <div
-          className="claim-card claim-reveal mx-auto max-w-2xl overflow-hidden rounded-2xl border border-border bg-card"
+          className="claim-card claim-reveal mx-auto max-w-2xl overflow-hidden rounded-[6px] border border-border bg-card"
           style={{ animationDelay: "0.12s" }}
         >
           {/* Header meta + token symbol + claim action */}
           <div className="px-6 py-8 text-center sm:px-8 sm:py-10">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-              {(start || end) && <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>}
+              <HeaderDateRange d={d} />
               <StatusBadge status={d.status} />
             </div>
             <div className="mt-7">
@@ -150,28 +148,8 @@ export function Claim() {
                 <Kicker>Not live yet</Kicker>
                 <p className="text-sm text-muted-foreground">This distribution isn't live yet — check back later.</p>
               </div>
-            ) : airdropBlocked ? (
-              notStarted ? (
-                <div className="space-y-2">
-                  <Kicker>Claim opens in</Kicker>
-                  <div className="font-mono text-[clamp(1.75rem,6vw,2.5rem)] leading-none tabular-nums text-foreground">
-                    {fmtCountdown(start! - now)}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Kicker>Claim window closed</Kicker>
-                  <p className="text-sm text-muted-foreground">{fmtTime(end)}</p>
-                </div>
-              )
             ) : d.type === "airdrop" ? (
-              <AirdropClaimGate
-                d={d}
-                decimals={decimals}
-                symbol={meta.symbol}
-                closesIn={end != null ? end - now : null}
-                isConnected={isConnected}
-              />
+              <AirdropClaimSection d={d} decimals={decimals} symbol={meta.symbol} isConnected={isConnected} now={now} />
             ) : !isConnected ? (
               <ConnectPrompt />
             ) : (
@@ -249,6 +227,69 @@ function ConnectPrompt() {
         <ConnectButton />
       </div>
     </div>
+  )
+}
+
+// Card-header date range. Airdrop windows can be extended on-chain, so read the live end
+// there; vesting/disperse use the create-time config.
+function HeaderDateRange({ d }: { d: Distribution }) {
+  if (d.type === "airdrop" && d.contractAddress)
+    return <AirdropHeaderRange airdrop={d.contractAddress as Address} d={d} />
+  const start = typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null
+  const end = typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null
+  if (!start && !end) return null
+  return <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>
+}
+
+function AirdropHeaderRange({ airdrop, d }: { airdrop: Address; d: Distribution }) {
+  const startQ = useAirdropStartTime({ address: airdrop })
+  const endQ = useAirdropEndTime({ address: airdrop })
+  const start = startQ.data ?? (typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null)
+  const end = endQ.data ?? (typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null)
+  if (!start && !end) return null
+  return <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>
+}
+
+// Airdrop claim window, read on-chain. The admin can extend the window after deploy
+// (useExtendClaimWindow), so the DB end time can be stale — the chain is authoritative for
+// "opens in / window closed / closes in". DB config covers the brief read latency.
+function AirdropClaimSection({
+  d,
+  decimals,
+  symbol,
+  isConnected,
+  now,
+}: {
+  d: Distribution
+  decimals: number
+  symbol?: string
+  isConnected: boolean
+  now: number
+}) {
+  const airdrop = d.contractAddress as Address
+  const startQ = useAirdropStartTime({ address: airdrop })
+  const endQ = useAirdropEndTime({ address: airdrop })
+  const start = startQ.data ?? (typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null)
+  const end = endQ.data ?? (typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null)
+
+  if (start != null && now < start)
+    return (
+      <div className="space-y-2">
+        <Kicker>Claim opens in</Kicker>
+        <div className="font-mono text-[clamp(1.75rem,6vw,2.5rem)] leading-none tabular-nums text-foreground">
+          {fmtCountdown(start - now)}
+        </div>
+      </div>
+    )
+  if (end != null && now > end)
+    return (
+      <div className="space-y-2">
+        <Kicker>Claim window closed</Kicker>
+        <p className="text-sm text-muted-foreground">{fmtTime(end)}</p>
+      </div>
+    )
+  return (
+    <AirdropClaimGate d={d} decimals={decimals} symbol={symbol} closesIn={end != null ? end - now : null} isConnected={isConnected} />
   )
 }
 
@@ -607,7 +648,7 @@ function AllocationRow({
   return (
     <div
       className={cn(
-        "claim-figure relative overflow-hidden rounded-2xl border border-border px-5 py-5 text-left sm:px-6",
+        "claim-figure relative overflow-hidden rounded-[6px] border border-border px-5 py-5 text-left sm:px-6",
         revealed ? "bg-card" : "claim-seal-frame bg-muted/25",
       )}
     >

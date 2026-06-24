@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from "react"
-import { Undo2, UserPlus, Upload, ClipboardList, BadgeCheck, Split } from "lucide-react"
+import { useState, useMemo } from "react"
+import { Undo2, ClipboardList, BadgeCheck, Split } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { formatUnits, formatEther, type Address } from "viem"
 import { useAccount } from "wagmi"
@@ -19,8 +19,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Kicker, Notice } from "@/components/editorial"
 import { BalanceLine } from "@/components/balance-line"
-import { RecipientPreview } from "@/components/recipient-preview"
-import { parseEntries, readRecipientCsv, downloadRecipientTemplate } from "@/lib/recipients"
+import { RecipientImportPanel } from "@/components/recipient-import-panel"
+import { parseEntries } from "@/lib/recipients"
 import { patchDistribution, type Distribution } from "@/lib/api"
 import { DISPERSE_SINGLETON, EXPLORER, err, numberConfig } from "./shared"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
@@ -53,11 +53,6 @@ export function DisperseCard({ d }: { d: Distribution }) {
   const [input, setInput] = useState("")
   const [progress, setProgress] = useState<string>()
   const [error, setError] = useState<string>()
-  const fileRef = useRef<HTMLInputElement>(null)
-
-  const loadCsv = (file: File) => {
-    void readRecipientCsv(file).then((text) => setInput((v) => (v ? `${v}\n` : "") + text))
-  }
 
   const { entries, errors } = useMemo(() => parseEntries(input, decimals), [input, decimals])
   const done = d.status === "completed"
@@ -202,15 +197,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
       <CardHeader>
         <CardTitle>Disperse</CardTitle>
         <CardDescription>
-          One <span className="font-mono">address, amount</span> per line, or upload a CSV —{" "}
-          <button
-            type="button"
-            onClick={downloadRecipientTemplate}
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            download a template
-          </button>
-          . Sends from your confidential balance in a single encrypted batch — recipients receive instantly, no claim.
+          Import address + amount rows, pass pre-flight, then send from your confidential balance in one encrypted batch.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -231,57 +218,20 @@ export function DisperseCard({ d }: { d: Distribution }) {
           <p className="text-xs text-muted-foreground">{MODES.find((m) => m.value === mode)?.blurb}</p>
         </div>
 
-        <textarea
-          className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
-          placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
+        <RecipientImportPanel
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={setInput}
+          entries={entries}
+          errors={errors}
+          decimals={decimals}
+          walletAddress={address}
+          readyCount={entries.length}
+          readyLabel="Recipients"
+          batchTotal={batchTotal}
+          batchLabel="Total send"
+          batchDetail={batchTotal > 0n ? `${entries.length} recipient${entries.length === 1 ? "" : "s"} in this batch` : undefined}
         />
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            disabled={!address}
-            onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
-          >
-            <UserPlus />
-            Add my address
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) loadCsv(f)
-              e.target.value = ""
-            }}
-          />
-          <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
-            <Upload />
-            Upload CSV
-          </Button>
-          <span className="text-muted-foreground">
-            {entries.length} recipient{entries.length === 1 ? "" : "s"}
-            {errors.length > 0 && ` · ${errors.length} error${errors.length > 1 ? "s" : ""}`}
-          </span>
-        </div>
-        {errors.length > 0 && (
-          <ul className="space-y-0.5 text-xs text-destructive">
-            {errors.slice(0, 5).map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-        )}
         <BalanceLine token={token} decimals={decimals} compareTo={batchTotal} />
-        {batchTotal > 0n && (
-          <p className="text-xs text-muted-foreground">
-            Total to send · <span className="font-mono text-foreground">{formatUnits(batchTotal, decimals)}</span> across {entries.length}
-          </p>
-        )}
-        <RecipientPreview entries={entries} decimals={decimals} />
 
         {/* Preflight — registration / approval / fee / batch / blockers, all from one read */}
         {valid && address && (

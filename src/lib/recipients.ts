@@ -1,7 +1,7 @@
 import { isAddress, parseUnits, getAddress, type Address } from "viem"
 import { shortAddr } from "@/lib/format"
 
-export type Entry = { recipient: Address; amount: bigint }
+export type Entry = { recipient: Address; amount: bigint; line?: number }
 
 // Parse a "address, amount" textarea into validated, de-duplicated entries.
 export function parseEntries(text: string, decimals: number): { entries: Entry[]; errors: string[] } {
@@ -10,21 +10,22 @@ export function parseEntries(text: string, decimals: number): { entries: Entry[]
   const seen = new Set<string>()
   text
     .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .forEach((line, i) => {
+    .forEach((raw, i) => {
+      const line = raw.trim()
+      if (!line) return
+      const lineNo = i + 1
       const [addr, amt] = line.split(/[,\s]+/)
       if (!addr || !isAddress(addr)) {
-        errors.push(`Line ${i + 1}: invalid address`)
+        errors.push(`Line ${lineNo}: invalid address`)
         return
       }
       if (!amt || !(Number(amt) > 0)) {
-        errors.push(`Line ${i + 1}: invalid amount`)
+        errors.push(`Line ${lineNo}: invalid amount`)
         return
       }
       const key = addr.toLowerCase()
       if (seen.has(key)) {
-        errors.push(`Line ${i + 1}: duplicate ${shortAddr(addr)}`)
+        errors.push(`Line ${lineNo}: duplicate ${shortAddr(addr)}`)
         return
       }
       seen.add(key)
@@ -33,12 +34,12 @@ export function parseEntries(text: string, decimals: number): { entries: Entry[]
         // Sub-unit amounts round to 0 at this token's precision — reject rather
         // than silently create a zero-amount grant.
         if (amount <= 0n) {
-          errors.push(`Line ${i + 1}: amount too small for ${decimals} decimals`)
+          errors.push(`Line ${lineNo}: amount too small for ${decimals} decimals`)
           return
         }
-        entries.push({ recipient: getAddress(addr), amount })
+        entries.push({ recipient: getAddress(addr), amount, line: lineNo })
       } catch {
-        errors.push(`Line ${i + 1}: bad amount`)
+        errors.push(`Line ${lineNo}: bad amount`)
       }
     })
   return { entries, errors }

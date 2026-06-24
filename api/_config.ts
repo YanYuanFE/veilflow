@@ -80,5 +80,7 @@ export function validateConfig(type: string, raw: unknown): Json {
     initialUnlockBps,
     cliffAmountBps,
     isRevocable: bool(c.isRevocable, "isRevocable"),
+    // Immutable at deploy: lets recipients split a portion of their vesting to another address.
+    splitEnabled: typeof c.splitEnabled === "boolean" ? c.splitEnabled : false,
   }
 }

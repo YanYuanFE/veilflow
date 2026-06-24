@@ -5,7 +5,6 @@ import "./variant-landing.css"
 
 const NAV_LINKS = [
   { to: "/dashboard", label: "Distributions" },
-  { to: "/create", label: "Create" },
   { to: "/claims", label: "Claims" },
   { to: "/wrap", label: "Wrap / Unwrap" },
   { to: "/audit", label: "Audit" },
@@ -126,7 +125,7 @@ export function VariantLanding() {
       <main className="vl-main">
         <section className="vl-hero">
           <div className="vl-metadata-tag">
-            <span className="vl-dot-gold" /> [NETWORK_SEPOLIA] 0x7984_V1.0
+            <span className="vl-dot-gold" /> LIVE ON SEPOLIA
           </div>
           <h1>
             Airdrops, vesting, disperse —
@@ -165,13 +164,6 @@ export function VariantLanding() {
               </svg>
             </Link>
             <Link to="/docs" className="vl-btn-secondary">
-              <div className="vl-play-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <path d="M14 2v6h6" />
-                  <path d="M9 13h6M9 17h4" />
-                </svg>
-              </div>
               Read the docs
             </Link>
           </div>
@@ -284,11 +276,9 @@ export function VariantLanding() {
       <footer className="vl-footer">
         <div>© 2026 VeilFlow Infrastructure</div>
         <div className="vl-footer-links">
-          <a href="#">GitHub</a>
+          <a href="https://github.com/YanYuanFE/veilflow" target="_blank" rel="noreferrer">GitHub</a>
           <Link to="/docs">Documentation</Link>
-          <a href="#">Audit Report</a>
         </div>
-        <div>STABLE_REL_0.9.4</div>
       </footer>
     </div>
   )

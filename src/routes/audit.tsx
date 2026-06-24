@@ -3,17 +3,10 @@ import { useSearchParams } from "react-router-dom"
 import { formatUnits, isAddress, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { useQuery } from "@tanstack/react-query"
-import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { Lock } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
-import {
-  useManagerToken,
-  useGetTotalAllocation,
-  useGetVestedAmount,
-  useGetSettledAmount,
-  useGetClaimableAmount,
-} from "@tokenops/sdk/fhe-vesting/react"
+import { useManagerToken } from "@tokenops/sdk/fhe-vesting/react"
 import { DisclosureType } from "@tokenops/sdk/fhe-vesting"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,17 +54,18 @@ export function Audit() {
   const meta = useTokenMeta(validManager ? tokenQ.data : undefined)
   const decimals = meta.decimals ?? 6
 
-  // One getter per disclosure type — call the one matching what was disclosed.
-  const total = useGetTotalAllocation({ address: m })
-  const vested = useGetVestedAmount({ address: m })
-  const settled = useGetSettledAmount({ address: m })
-  const claimable = useGetClaimableAmount({ address: m })
-  const getter = {
-    [DisclosureType.TotalAllocation]: total,
-    [DisclosureType.VestedAmount]: vested,
-    [DisclosureType.ClaimableAmount]: claimable,
-    [DisclosureType.SettledAmount]: settled,
-  }[dtype]
+  // The auditor decrypts the handle granted to them at disclosure time. The get*/getVested*
+  // getters are recipient-scoped and revert for anyone who isn't the vesting's recipient, so we
+  // match the form (manager + vesting + figure) to a disclosure recorded for THIS wallet and
+  // decrypt its stored handle instead of calling a getter.
+  const matched = mine.data?.find(
+    (r) =>
+      r.manager.toLowerCase() === manager.toLowerCase() &&
+      r.vestingId.toLowerCase() === vestingId.toLowerCase() &&
+      r.disclosureType === dtype &&
+      !!r.handle,
+  )
+  const matchedHandle = matched?.handle as Hex | undefined
 
   const decrypt = useUserDecrypt(
     { handles: viewHandle && validManager ? [{ handle: viewHandle, contractAddress: m }] : [] },
@@ -80,28 +74,12 @@ export function Audit() {
   const revealed = viewHandle ? decrypt.data?.[viewHandle] : undefined
   const revealedText =
     typeof revealed === "bigint" ? `${formatUnits(revealed, decimals)}${meta.symbol ? ` ${meta.symbol}` : ""}` : undefined
-  const revealing = getter.isPending || (!!viewHandle && revealed === undefined && !decrypt.error)
+  const revealing = !!viewHandle && revealed === undefined && !decrypt.error
   const typeLabel = TYPES.find((t) => t.value === dtype)?.label ?? ""
 
-  const onReveal = async () => {
-    if (!validManager || !validVid) return
-    setViewHandle(undefined)
-    const id = vestingId as Hex
-    try {
-      // Call the getter matching the disclosed figure. Vested is time-dependent → pass "now".
-      const view =
-        dtype === DisclosureType.VestedAmount
-          ? await vested.mutateAsync({ vestingId: id, timestamp: Math.floor(Date.now() / 1000) })
-          : dtype === DisclosureType.ClaimableAmount
-            ? await claimable.mutateAsync({ vestingId: id })
-            : dtype === DisclosureType.SettledAmount
-              ? await settled.mutateAsync({ vestingId: id })
-              : await total.mutateAsync({ vestingId: id })
-      setViewHandle(view.handle)
-      toast.success("Access granted — decrypting")
-    } catch (e) {
-      toast.error(err(e))
-    }
+  const onReveal = () => {
+    // No on-chain call — decrypt the handle the issuer already granted this wallet.
+    if (matchedHandle) setViewHandle(matchedHandle)
   }
 
   return (
@@ -203,12 +181,17 @@ export function Audit() {
               <ConnectButton />
             </div>
           ) : (
-            <Button onClick={onReveal} disabled={!validManager || !validVid || revealing}>
+            <Button onClick={onReveal} disabled={!matchedHandle || revealing}>
               {revealing ? "Lifting the veil…" : `Reveal ${typeLabel.toLowerCase()}`}
             </Button>
           )}
 
-          {getter.error && <p className="text-sm text-destructive">{err(getter.error)}</p>}
+          {isConnected && validManager && validVid && !matchedHandle && mine.data && (
+            <p className="text-sm text-muted-foreground">
+              No figure disclosed to <span className="font-mono text-foreground">{shortAddr(address)}</span> here. You can only
+              read a figure the issuer disclosed to your connected wallet.
+            </p>
+          )}
           {decrypt.error && <p className="text-sm text-destructive">{err(decrypt.error)}</p>}
         </div>
       </div>

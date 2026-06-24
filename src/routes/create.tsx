@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Send, CalendarClock, Split, FilePlus2, type LucideIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useMutation } from "@tanstack/react-query"
 import { isAddress, type Address } from "viem"
@@ -17,10 +18,10 @@ import { useNowSeconds } from "@/lib/use-now"
 import { useTokenMeta } from "@/lib/tokens"
 import { createDistribution, type DistributionType } from "@/lib/api"
 
-const TYPES: { id: DistributionType; title: string; blurb: string; ready: boolean }[] = [
-  { id: "airdrop", title: "Airdrop", blurb: "Signature-authorized claims with encrypted per-recipient amounts.", ready: true },
-  { id: "vesting", title: "Vesting", blurb: "Linear unlock with cliff & initial release, claimed over time.", ready: true },
-  { id: "disperse", title: "Disperse", blurb: "One-shot batch payout — recipients receive directly, no claim.", ready: true },
+const TYPES: { id: DistributionType; title: string; blurb: string; ready: boolean; icon: LucideIcon }[] = [
+  { id: "airdrop", title: "Airdrop", blurb: "Signature-authorized claims with encrypted per-recipient amounts.", ready: true, icon: Send },
+  { id: "vesting", title: "Vesting", blurb: "Linear unlock with cliff & initial release, claimed over time.", ready: true, icon: CalendarClock },
+  { id: "disperse", title: "Disperse", blurb: "One-shot batch payout — recipients receive directly, no claim.", ready: true, icon: Split },
 ]
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address
@@ -48,6 +49,7 @@ export function Create() {
   const [initialUnlockPct, setInitialUnlockPct] = useState("0")
   const [timelockDays, setTimelockDays] = useState("0")
   const [revocable, setRevocable] = useState(false)
+  const [splitEnabled, setSplitEnabled] = useState(false)
 
   const validToken = isAddress(token)
   const confCheck = useIsConfidential(validToken ? (token as Address) : ZERO, { enabled: validToken })
@@ -95,6 +97,7 @@ export function Create() {
                 initialUnlockBps: Math.round(initialPctN * 100),
                 cliffAmountBps: Math.round(cliffAmountPctN * 100),
                 isRevocable: revocable,
+                splitEnabled,
               }
             : type === "disperse"
               ? { decimals: tokenMeta.decimals!, mode: "direct" }
@@ -160,7 +163,10 @@ export function Create() {
                   aria-hidden
                 />
               </div>
-              <h3 className="font-display mt-3 text-xl tracking-tight text-foreground">{t.title}</h3>
+              <h3 className="font-display mt-3 flex items-center gap-2 text-xl tracking-tight text-foreground">
+                <t.icon className={cn("size-5", type === t.id ? "text-foreground" : "text-muted-foreground")} aria-hidden />
+                {t.title}
+              </h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t.blurb}</p>
             </button>
           ))}
@@ -274,9 +280,13 @@ export function Create() {
                   <Label htmlFor="timelock">Timelock (days)</Label>
                   <Input id="timelock" inputMode="numeric" value={timelockDays} onChange={(e) => setTimelockDays(e.target.value)} />
                 </div>
-                <label className="flex items-end gap-2.5 pb-2 text-sm text-foreground">
+                <label className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
                   <input type="checkbox" className="size-4 accent-seal" checked={revocable} onChange={(e) => setRevocable(e.target.checked)} />
                   Revocable by admin
+                </label>
+                <label className="flex items-center gap-2.5 pb-2 text-sm text-foreground">
+                  <input type="checkbox" className="size-4 accent-seal" checked={splitEnabled} onChange={(e) => setSplitEnabled(e.target.checked)} />
+                  Allow recipients to split
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -305,6 +315,7 @@ export function Create() {
 
           <div className="flex items-center gap-4 border-t border-border pt-5">
             <Button onClick={() => create.mutate()} disabled={!canSubmit || create.isPending}>
+              <FilePlus2 />
               {create.isPending ? "Creating draft…" : "Create draft"}
             </Button>
             {!isConnected && <span className="text-sm text-muted-foreground">Connect your wallet to create a distribution.</span>}

@@ -7,6 +7,7 @@ const SECTIONS = [
   { id: "instruments", label: "The three instruments" },
   { id: "issue", label: "Issuing a distribution" },
   { id: "claim", label: "Claiming" },
+  { id: "vesting-actions", label: "Managing a vesting" },
   { id: "disclosure", label: "Selective disclosure" },
   { id: "admin", label: "Admin controls" },
   { id: "branding", label: "Branded claim pages" },
@@ -143,6 +144,31 @@ export function Docs() {
               confidential, so there is no plaintext "claimed" flag; the honest signal is the claimable amount itself,
               which decrypts to zero once the vested-so-far portion is claimed.
             </P>
+          </Section>
+
+          <Section id="vesting-actions" title="Managing a vesting">
+            <P>
+              Beyond claiming, a vesting holder gets a set of advanced actions from the <em>Manage</em> dialog on their
+              claim page. Every amount stays encrypted — these operate on the on-chain handles, never plaintext.
+            </P>
+            <Term name="Partial claim">
+              Claim a specific amount of what's currently vested rather than the whole vested-so-far portion — useful
+              when you only want to draw down part of it.
+            </Term>
+            <Term name="Split off a portion">
+              Move a fraction (e.g. 1/3) of a vesting to another address as a new, independent vesting with the same
+              schedule. The manager must have splitting enabled when it was deployed.
+            </Term>
+            <Term name="Transfer ownership">
+              Hand the entire vesting to another address — two-step (initiate, then the new recipient accepts within a
+              window) or direct and immediate. The receiver accepts a pending transfer by pasting the vesting id the
+              sender shares with them.
+            </Term>
+            <Term name="Disclose a figure">
+              Grant a named party — auditor, lender, accountant — read-only access to one of your figures (total,
+              vested, claimable, or settled) via an encrypted view key. The grant is append-only on the ACL, so it is
+              irreversible.
+            </Term>
           </Section>
 
           <Section id="disclosure" title="Selective disclosure">

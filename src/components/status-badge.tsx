@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import type { DistributionStatus } from "@/lib/api"
+import type { DistributionStatus, DistributionType } from "@/lib/api"
 
 type Variant = "secondary" | "outline" | "destructive"
 
@@ -21,6 +21,16 @@ export function StatusBadge({ status }: { status: DistributionStatus }) {
     <Badge variant={variant} className="gap-1.5 uppercase tracking-[0.1em]">
       <span className={cn("size-1.5 rounded-full", dot)} aria-hidden />
       {status}
+    </Badge>
+  )
+}
+
+/** Distribution type as a compact category tag — filled, no dot (so it reads
+ *  distinct from StatusBadge's dotted status chip). */
+export function TypeBadge({ type }: { type: DistributionType }) {
+  return (
+    <Badge variant="secondary" className="rounded-[3px] px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.1em]">
+      {type}
     </Badge>
   )
 }

@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react"
+import { Check, X, Radio } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -30,7 +30,8 @@ export function GoLiveDialog({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm">
+          <Radio />
           Go live
         </Button>
       </AlertDialogTrigger>

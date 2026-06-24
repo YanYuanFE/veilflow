@@ -17,12 +17,14 @@ export function VestingTimeline({
   start,
   end,
   cliffSeconds,
+  releaseIntervalSecs,
   initialUnlockBps,
   cliffAmountBps,
 }: {
   start: number
   end: number
   cliffSeconds: number
+  releaseIntervalSecs: number
   initialUnlockBps: number
   cliffAmountBps: number
 }) {
@@ -37,18 +39,31 @@ export function VestingTimeline({
   const cliffPct = Math.max(0, Math.min(100 - initialPct, cliffAmountBps / 100))
   const afterCliffPct = initialPct + cliffPct
 
-  // Cumulative unlock %: flat at initial through the cliff, a jump at the cliff, then a
-  // straight stream to 100% at the end.
+  // Cumulative unlock %: flat at initial through the cliff, a jump at the cliff, then the
+  // remainder released in DISCRETE steps of releaseIntervalSecs to 100% at the end — the
+  // contract only unlocks at each interval boundary, so a continuous line would overstate
+  // the vested amount during the flat stretch between two releases.
+  const linearSpan = end - cliffTs
   const pctAt = (t: number) => {
     if (t < cliffTs) return initialPct
     if (t >= end) return 100
-    return afterCliffPct + (100 - afterCliffPct) * ((t - cliffTs) / (end - cliffTs))
+    const elapsed = t - cliffTs
+    const stepped =
+      releaseIntervalSecs > 0 ? Math.min(Math.floor(elapsed / releaseIntervalSecs) * releaseIntervalSecs, linearSpan) : elapsed
+    return afterCliffPct + (100 - afterCliffPct) * (stepped / linearSpan)
   }
   const N = 48
-  const data = Array.from({ length: N + 1 }, (_, i) => {
-    const t = Math.round(start + (span * i) / N)
-    return { t, pct: Number(pctAt(t).toFixed(2)) }
-  })
+  // Splice the cliff edges, each release-step boundary, and "now" into the samples so the
+  // staircase lands exactly on the real unlock moments and the tooltip can snap to them.
+  // (Skip per-step points when the interval is so fine the curve is effectively continuous.)
+  const stepBoundaries: number[] = []
+  if (releaseIntervalSecs > 0 && linearSpan / releaseIntervalSecs <= 120) {
+    for (let s = cliffTs + releaseIntervalSecs; s < end; s += releaseIntervalSecs) stepBoundaries.push(s)
+  }
+  const marks = [cliffTs - 1, cliffTs, now, ...stepBoundaries].filter((t) => t > start && t < end)
+  const uniform = Array.from({ length: N + 1 }, (_, i) => Math.round(start + (span * i) / N))
+  const ts = [...new Set([...uniform, ...marks])].sort((a, b) => a - b)
+  const data = ts.map((t) => ({ t, pct: Number(pctAt(t).toFixed(2)) }))
   const showNow = now >= start && now <= end
 
   return (
@@ -57,7 +72,7 @@ export function VestingTimeline({
         <Kicker className="tracking-[0.12em]">Vesting timeline</Kicker>
         <span className="font-mono text-[0.625rem] tracking-wide text-muted-foreground">% of your allocation</span>
       </div>
-      <ChartContainer config={chartConfig} className="mt-3 w-full" style={{ height: 232 }}>
+      <ChartContainer config={chartConfig} className="mt-3 w-full [&_.recharts-reference-line]:pointer-events-none" style={{ height: 232 }}>
         <AreaChart data={data} margin={{ top: 18, right: 14, bottom: 2, left: 0 }}>
           <defs>
             <linearGradient id="vt-fill" x1="0" y1="0" x2="0" y2="1">
@@ -116,7 +131,7 @@ export function VestingTimeline({
           <Area
             name="Unlocked"
             dataKey="pct"
-            type="linear"
+            type="stepAfter"
             stroke="var(--muted-foreground)"
             strokeWidth={1.75}
             fill="url(#vt-fill)"

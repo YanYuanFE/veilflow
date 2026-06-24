@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react"
+import { Rocket, RefreshCw, UserPlus, Upload, Stamp, Coins, Pause, Play, CalendarPlus, Check, ArrowDownToLine, ShieldCheck, ShieldX, LifeBuoy, Clock, Fuel } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { isAddress, parseUnits, parseEther, formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
@@ -30,7 +31,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DateTimePicker } from "@/components/ui/datetime-picker"
-import { Kicker, Notice } from "@/components/editorial"
+import { Kicker, Notice, SectionHead } from "@/components/editorial"
 import { BalanceLine } from "@/components/balance-line"
 import { RecipientPreview } from "@/components/recipient-preview"
 import { shortAddr, fmtTime } from "@/lib/format"
@@ -135,6 +136,7 @@ export function DeployCard({ d }: { d: Distribution }) {
         </div>
         <BalanceLine token={d.token as Address} decimals={decimals} compareTo={fundWei} />
         <Button onClick={onDeploy} disabled={!isConnected || !fund || !!phase || !!scheduleError}>
+          <Rocket />
           {phase ?? "Approve & deploy"}
         </Button>
         {scheduleError && <p className="text-sm text-destructive">{scheduleError}</p>}
@@ -154,6 +156,7 @@ export function DeployCard({ d }: { d: Distribution }) {
                   })
               }
             >
+              <RefreshCw />
               Retry write-back
             </Button>
           </Notice>
@@ -267,7 +270,7 @@ export function IssueCard({ d }: { d: Distribution }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <textarea
-            className="min-h-28 w-full rounded-sm border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
             placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -280,6 +283,7 @@ export function IssueCard({ d }: { d: Distribution }) {
               disabled={!address}
               onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
             >
+              <UserPlus />
               Add my address
             </Button>
             <input
@@ -294,6 +298,7 @@ export function IssueCard({ d }: { d: Distribution }) {
               }}
             />
             <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+              <Upload />
               Upload CSV
             </Button>
             <span className="text-muted-foreground">
@@ -322,6 +327,7 @@ export function IssueCard({ d }: { d: Distribution }) {
             </Notice>
           )}
           <Button onClick={onIssue} disabled={!airdrop || fresh.length === 0 || !!progress || windowClosed}>
+            <Stamp />
             {progress ?? (fresh.length ? `Issue ${fresh.length} claim${fresh.length === 1 ? "" : "s"}` : "Issue claims")}
           </Button>
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -414,7 +420,8 @@ export function TopUpPoolCard({ token, pool, decimals }: { token: Address; pool:
             <Label htmlFor="topup">Amount</Label>
             <Input id="topup" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
-          <Button onClick={onTopUp} disabled={!isConnected || !amountWei || transfer.isPending}>
+          <Button size="sm" onClick={onTopUp} disabled={!isConnected || !amountWei || transfer.isPending}>
+            <Coins />
             {transfer.isPending ? "Sending…" : "Top up pool"}
           </Button>
         </div>
@@ -423,15 +430,51 @@ export function TopUpPoolCard({ token, pool, decimals }: { token: Address; pool:
   )
 }
 
+// Inline pause/resume row — rendered inside the Overview card (no wrapper card of its own).
+export function AirdropPauseRow({ d }: { d: Distribution }) {
+  const airdrop = d.contractAddress as Address
+  const pausedQ = useAirdropIsPaused({ address: airdrop })
+  const setPaused = useSetPaused({ address: airdrop })
+  const confirm = useConfirmTx()
+  const isPaused = pausedQ.data === true
+
+  const onPause = async () => {
+    try {
+      const hash = await setPaused.mutateAsync({ paused: !isPaused })
+      await confirm(hash)
+      await pausedQ.refetch()
+      toast.success(isPaused ? "Claims resumed" : "Claims paused")
+    } catch (e) {
+      toast.error(err(e))
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+      <div>
+        <Kicker className="tracking-[0.12em]">Claims</Kicker>
+        <p className="mt-1 text-sm text-foreground">{pausedQ.isLoading ? "…" : isPaused ? "Paused" : "Open"}</p>
+      </div>
+      <Button
+        variant={isPaused ? "default" : "destructive"}
+        size="sm"
+        onClick={onPause}
+        disabled={setPaused.isPending || pausedQ.isLoading}
+      >
+        {isPaused ? <Play /> : <Pause />}
+        {setPaused.isPending ? "…" : isPaused ? "Resume claims" : "Pause claims"}
+      </Button>
+    </div>
+  )
+}
+
 export function AdminCard({ d }: { d: Distribution }) {
   const queryClient = useQueryClient()
   const { address } = useAccount()
   const airdrop = d.contractAddress as Address
 
-  const pausedQ = useAirdropIsPaused({ address: airdrop })
   const endQ = useAirdropEndTime({ address: airdrop })
   const canExtendQ = useAirdropCanExtendClaimWindow({ address: airdrop })
-  const setPaused = useSetPaused({ address: airdrop })
   const extend = useExtendClaimWindow({ address: airdrop })
   const withdraw = useWithdraw({ address: airdrop })
   const withdrawGas = useAirdropWithdrawGasFee({ address: airdrop })
@@ -457,22 +500,11 @@ export function AdminCard({ d }: { d: Distribution }) {
     account: isAddress(roleTarget) ? (roleTarget as Address) : undefined,
   })
 
-  const isPaused = pausedQ.data === true
   const newEndTs = newEnd ? Math.floor(new Date(newEnd).getTime() / 1000) : null
   // Require the current on-chain end time to be loaded before allowing extend —
   // a stale/undefined read must not let an earlier close time through.
   const extendValid = newEndTs != null && typeof endQ.data === "number" && newEndTs > endQ.data
 
-  const onPause = async () => {
-    try {
-      const hash = await setPaused.mutateAsync({ paused: !isPaused })
-      await confirm(hash)
-      await pausedQ.refetch()
-      toast.success(isPaused ? "Claims resumed" : "Claims paused")
-    } catch (e) {
-      toast.error(err(e))
-    }
-  }
   const onExtend = async () => {
     if (!extendValid || newEndTs == null) return
     try {
@@ -556,26 +588,10 @@ export function AdminCard({ d }: { d: Distribution }) {
         <CardDescription>Operate the live airdrop — only the admin can run these.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* Pause / resume */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <Kicker className="tracking-[0.12em]">Claims</Kicker>
-            <p className="mt-1 text-sm text-foreground">{pausedQ.isLoading ? "…" : isPaused ? "Paused" : "Open"}</p>
-          </div>
-          <Button
-            variant={isPaused ? "default" : "destructive"}
-            size="sm"
-            onClick={onPause}
-            disabled={setPaused.isPending || pausedQ.isLoading}
-          >
-            {setPaused.isPending ? "…" : isPaused ? "Resume claims" : "Pause claims"}
-          </Button>
-        </div>
-
         {/* Extend window */}
-        <div className="space-y-2 border-t border-border pt-5">
+        <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <Kicker className="tracking-[0.12em]">Claim window</Kicker>
+            <SectionHead icon={Clock}>Claim window</SectionHead>
             {typeof endQ.data === "number" && <span className="text-xs text-muted-foreground">Closes {fmtTime(endQ.data)}</span>}
           </div>
           {canExtendQ.data === false ? (
@@ -587,6 +603,7 @@ export function AdminCard({ d }: { d: Distribution }) {
                   <DateTimePicker value={newEnd} onChange={setNewEnd} placeholder="New close time" />
                 </div>
                 <Button size="sm" variant="outline" onClick={onExtend} disabled={!extendValid || extend.isPending}>
+                  <CalendarPlus />
                   {extend.isPending ? "Extending…" : "Extend"}
                 </Button>
               </div>
@@ -597,7 +614,7 @@ export function AdminCard({ d }: { d: Distribution }) {
 
         {/* Withdraw remaining */}
         <div className="space-y-2 border-t border-border pt-5">
-          <Kicker className="tracking-[0.12em]">Withdraw remaining</Kicker>
+          <SectionHead icon={Coins}>Withdraw remaining</SectionHead>
           <p className="text-xs text-muted-foreground">Pulls all unclaimed confidential tokens out of the pool to an address.</p>
           <div className="flex flex-wrap items-center gap-3">
             <div className="min-w-[14rem] flex-1">
@@ -610,6 +627,7 @@ export function AdminCard({ d }: { d: Distribution }) {
             {confirmWithdraw ? (
               <div className="flex items-center gap-2">
                 <Button variant="destructive" size="sm" onClick={onWithdraw} disabled={withdraw.isPending}>
+                  <Check />
                   {withdraw.isPending ? "Withdrawing…" : "Confirm"}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmWithdraw(false)}>
@@ -618,6 +636,7 @@ export function AdminCard({ d }: { d: Distribution }) {
               </div>
             ) : (
               <Button variant="outline" size="sm" onClick={() => setConfirmWithdraw(true)} disabled={!!to && !isAddress(to)}>
+                <ArrowDownToLine />
                 Withdraw…
               </Button>
             )}
@@ -627,7 +646,7 @@ export function AdminCard({ d }: { d: Distribution }) {
 
         {/* Withdraw gas fees */}
         <div className="space-y-2 border-t border-border pt-5">
-          <Kicker className="tracking-[0.12em]">Withdraw gas fees</Kicker>
+          <SectionHead icon={Fuel}>Withdraw gas fees</SectionHead>
           <p className="text-xs text-muted-foreground">
             Reclaim the ETH gas fees recipients paid on claim. Needs the fee-collector role. Leave the amount blank to
             withdraw everything.
@@ -658,6 +677,7 @@ export function AdminCard({ d }: { d: Distribution }) {
               onClick={onWithdrawGasFee}
               disabled={withdrawGas.isPending || (!!feeTo && !isAddress(feeTo))}
             >
+              <ArrowDownToLine />
               {withdrawGas.isPending ? "Withdrawing…" : "Withdraw fees"}
             </Button>
           </div>
@@ -666,7 +686,7 @@ export function AdminCard({ d }: { d: Distribution }) {
 
         {/* Delegate admin */}
         <div className="space-y-2 border-t border-border pt-5">
-          <Kicker className="tracking-[0.12em]">Delegate admin</Kicker>
+          <SectionHead icon={UserPlus}>Delegate admin</SectionHead>
           <p className="text-xs text-muted-foreground">
             Grant another wallet the admin role — it can then sign claims, pause, extend and withdraw.
           </p>
@@ -675,9 +695,11 @@ export function AdminCard({ d }: { d: Distribution }) {
               <Input placeholder="0x… wallet" value={roleTarget} onChange={(e) => setRoleTarget(e.target.value.trim())} />
             </div>
             <Button size="sm" onClick={onGrantRole} disabled={!isAddress(roleTarget) || grantRole.isPending}>
+              <ShieldCheck />
               {grantRole.isPending ? "Granting…" : "Grant"}
             </Button>
             <Button size="sm" variant="outline" onClick={onRevokeRole} disabled={!isAddress(roleTarget) || revokeRole.isPending}>
+              <ShieldX />
               {revokeRole.isPending ? "Revoking…" : "Revoke"}
             </Button>
           </div>
@@ -690,7 +712,7 @@ export function AdminCard({ d }: { d: Distribution }) {
 
         {/* Rescue stray tokens */}
         <div className="space-y-2 border-t border-border pt-5">
-          <Kicker className="tracking-[0.12em]">Rescue stray tokens</Kicker>
+          <SectionHead icon={LifeBuoy}>Rescue stray tokens</SectionHead>
           <p className="text-xs text-muted-foreground">Withdraw a non-pool token accidentally sent to the airdrop.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input placeholder="Token 0x…" value={rescueToken} onChange={(e) => setRescueToken(e.target.value.trim())} />
@@ -713,6 +735,7 @@ export function AdminCard({ d }: { d: Distribution }) {
               />
             </div>
             <Button size="sm" variant="outline" onClick={onRescue} disabled={!isAddress(rescueToken) || wOther.isPending || wOtherConf.isPending}>
+              <LifeBuoy />
               {wOther.isPending || wOtherConf.isPending ? "Rescuing…" : "Rescue"}
             </Button>
           </div>

@@ -82,6 +82,21 @@
   }
 }
 
+/* Sealed amount frame — faint diagonal security hatching engraved into the
+   block while the figure is still encrypted. Clipped by the frame's rounding;
+   sits behind the content, which is relatively positioned above it. */
+.claim-seal-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklch, var(--foreground) 7%, transparent) 0 1px,
+    transparent 1px 9px
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   .claim-reveal {
     animation: none;

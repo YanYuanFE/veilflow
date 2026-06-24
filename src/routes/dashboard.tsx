@@ -1,14 +1,16 @@
+import type { Address } from "viem"
 import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useAccount } from "wagmi"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "@/components/status-badge"
+import { StatusBadge, TypeBadge } from "@/components/status-badge"
 import { Kicker, Notice } from "@/components/editorial"
 import { Loading } from "@/components/spinner"
-import { listDistributions } from "@/lib/api"
+import { listDistributions, type Distribution } from "@/lib/api"
 import { lifecycle } from "@/lib/lifecycle"
 import { shortAddr } from "@/lib/format"
+import { useTokenMeta } from "@/lib/tokens"
 
 export function Dashboard() {
   const { address, isConnected } = useAccount()
@@ -62,39 +64,45 @@ export function Dashboard() {
         </div>
       ) : (
         <ul className="divide-y divide-border border-y border-border">
-          {rows.map((d) => {
-            const next = lifecycle(d).nextLabel
-            return (
-            <li key={d.id}>
-              <Link
-                to={`/d/${d.id}`}
-                className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_8rem]"
-              >
-                <div className="min-w-0">
-                  <h3 className="font-display truncate text-xl tracking-tight text-foreground">
-                    {d.name}
-                    <span className="ml-2 inline-block text-muted-foreground opacity-0 transition-[opacity,transform] duration-300 group-hover:translate-x-1 group-hover:opacity-100">
-                      →
-                    </span>
-                  </h3>
-                  <Kicker className="mt-1">
-                    {d.type} · /{d.slug}
-                  </Kicker>
-                </div>
-                <div className="hidden font-mono text-xs leading-relaxed text-muted-foreground sm:block sm:text-right">
-                  <div>Token {shortAddr(d.token)}</div>
-                  {d.contractAddress && <div>Pool {shortAddr(d.contractAddress)}</div>}
-                </div>
-                <div className="col-start-2 row-start-1 flex flex-col items-end gap-1.5 sm:col-start-3">
-                  <StatusBadge status={d.status} />
-                  {next && <Kicker className="text-foreground/70">Next · {next}</Kicker>}
-                </div>
-              </Link>
-            </li>
-            )
-          })}
+          {rows.map((d) => (
+            <DistributionRow key={d.id} d={d} />
+          ))}
         </ul>
       )}
     </div>
+  )
+}
+
+function DistributionRow({ d }: { d: Distribution }) {
+  const next = lifecycle(d).nextLabel
+  const { symbol } = useTokenMeta(d.token as Address)
+  return (
+    <li>
+      <Link
+        to={`/d/${d.id}`}
+        className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_8rem]"
+      >
+        <div className="min-w-0">
+          <h3 className="font-display truncate text-xl tracking-tight text-foreground">
+            {d.name}
+            <span className="ml-2 inline-block text-muted-foreground opacity-0 transition-[opacity,transform] duration-300 group-hover:translate-x-1 group-hover:opacity-100">
+              →
+            </span>
+          </h3>
+          <div className="mt-1.5 flex items-center gap-2">
+            <TypeBadge type={d.type} />
+            {symbol && <Kicker>{symbol}</Kicker>}
+          </div>
+        </div>
+        <div className="hidden font-mono text-xs leading-relaxed text-muted-foreground sm:block sm:text-right">
+          <div>Token {shortAddr(d.token)}</div>
+          {d.contractAddress && <div>Pool {shortAddr(d.contractAddress)}</div>}
+        </div>
+        <div className="col-start-2 row-start-1 flex flex-col items-end gap-1.5 sm:col-start-3">
+          <StatusBadge status={d.status} />
+          {next && <Kicker className="text-foreground/70">Next · {next}</Kicker>}
+        </div>
+      </Link>
+    </li>
   )
 }

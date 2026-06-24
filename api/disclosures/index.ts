@@ -41,6 +41,9 @@ async function create(req: VercelRequest, res: VercelResponse) {
   const recipient = typeof b.recipient === "string" && b.recipient ? normalizeAddress(b.recipient, "recipient") : null
   const vestingId = typeof b.vestingId === "string" ? b.vestingId : ""
   if (!VID_RE.test(vestingId)) throw new HttpError(400, "vestingId must be a 32-byte hex")
+  // euint128 ciphertext handle the party was granted — same bytes32 shape. Optional for
+  // backward compat; without it the auditor can't decrypt (the chain still enforces ACL).
+  const handle = typeof b.handle === "string" && VID_RE.test(b.handle) ? b.handle : null
   const disclosureType = typeof b.disclosureType === "number" ? b.disclosureType : NaN
   if (!Number.isInteger(disclosureType)) throw new HttpError(400, "disclosureType must be an integer")
 
@@ -60,7 +63,7 @@ async function create(req: VercelRequest, res: VercelResponse) {
 
   const [row] = await db
     .insert(disclosures)
-    .values({ manager, party, recipient, vestingId, disclosureType, distributionId: dist.id })
+    .values({ manager, party, recipient, vestingId, handle, disclosureType, distributionId: dist.id })
     .returning()
   return res.status(201).json(row)
 }

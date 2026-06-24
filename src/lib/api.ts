@@ -43,6 +43,7 @@ export interface DisclosureRecord {
   distributionId: string | null
   manager: string
   vestingId: string
+  handle: string | null // euint128 ciphertext the party decrypts directly; null for legacy rows
   party: string
   disclosureType: number
   recipient: string | null
@@ -145,6 +146,7 @@ export function recordDisclosure(input: {
   distributionId?: string
   manager: Address
   vestingId: Hex
+  handle?: Hex
   party: Address
   disclosureType: number
   recipient?: Address

@@ -1,4 +1,5 @@
 import { type ReactNode } from "react"
+import { type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /** Letterspaced small-caps overline — the editorial/legal-document label. */
@@ -12,6 +13,16 @@ export function Kicker({ children, className }: { children: ReactNode; className
     >
       {children}
     </span>
+  )
+}
+
+/** Section header — a lucide glyph alongside the small-caps overline. */
+export function SectionHead({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon className="size-4 text-muted-foreground" aria-hidden />
+      <Kicker className="tracking-[0.12em]">{children}</Kicker>
+    </div>
   )
 }
 

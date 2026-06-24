@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react"
-import { Check, Copy, ExternalLink } from "lucide-react"
+import { Check, Copy, ExternalLink, Coins, Settings2, SlidersHorizontal, type LucideIcon } from "lucide-react"
 import { useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useAccount } from "wagmi"
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { StatusBadge } from "@/components/status-badge"
+import { StatusBadge, TypeBadge } from "@/components/status-badge"
 import { Kicker } from "@/components/editorial"
 import { Loading } from "@/components/spinner"
 import { Stepper } from "@/components/stepper"
@@ -17,9 +17,9 @@ import { shortAddr, fmtTime } from "@/lib/format"
 import { lifecycle } from "@/lib/lifecycle"
 import { getDistribution, type Distribution } from "@/lib/api"
 import { EXPLORER, numberConfig } from "./shared"
-import { DeployCard, IssueCard, TopUpPoolCard, AdminCard } from "./airdrop-panel"
-import { VestingDeployCard, VestingManageCard, VestingPauseRow, VestingDisclosureCard } from "./vesting-panel"
-import { VestingRolesCard, VestingTreasuryCard, VestingAdminViewsCard } from "./vesting-admin"
+import { DeployCard, IssueCard, TopUpPoolCard, AdminCard, AirdropPauseRow } from "./airdrop-panel"
+import { VestingDeployCard, VestingManageCard, VestingPauseRow, VestingScheduleSummary } from "./vesting-panel"
+import { VestingRolesCard, VestingTreasuryCard } from "./vesting-admin"
 import { DisperseCard } from "./disperse-panel"
 import { BrandingDialog } from "./branding-dialog"
 
@@ -44,9 +44,10 @@ export function DistributionDetail() {
   const heading = (
     <>
       <header className="space-y-3">
-        <Kicker>
-          {d.type} · /{d.slug}
-        </Kicker>
+        <div className="flex items-center gap-2">
+          <TypeBadge type={d.type} />
+          <Kicker>/{d.slug}</Kicker>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-display text-[clamp(2rem,4.5vw,2.85rem)] leading-tight text-foreground">{d.name}</h1>
           <StatusBadge status={d.status} />
@@ -108,25 +109,17 @@ function OverviewActions({ d }: { d: Distribution }) {
   if (!d.contractAddress) return null
   if (d.type === "vesting") {
     return (
-      <SheetButton label="Advanced" title="Advanced">
+      <SheetButton label="Advanced" title="Advanced" icon={SlidersHorizontal}>
         <Tabs defaultValue="roles" className="space-y-4">
           <TabsList className="w-full">
             <TabsTrigger value="roles">Roles</TabsTrigger>
             <TabsTrigger value="treasury">Treasury</TabsTrigger>
-            <TabsTrigger value="views">Views</TabsTrigger>
-            <TabsTrigger value="disclose">Disclose</TabsTrigger>
           </TabsList>
           <TabsContent value="roles">
             <VestingRolesCard d={d} />
           </TabsContent>
           <TabsContent value="treasury">
             <VestingTreasuryCard d={d} />
-          </TabsContent>
-          <TabsContent value="views">
-            <VestingAdminViewsCard d={d} />
-          </TabsContent>
-          <TabsContent value="disclose">
-            <VestingDisclosureCard d={d} />
           </TabsContent>
         </Tabs>
       </SheetButton>
@@ -136,10 +129,10 @@ function OverviewActions({ d }: { d: Distribution }) {
     const decimals = numberConfig(d, "decimals", 6)
     return (
       <div className="flex flex-wrap gap-2">
-        <SheetButton label="Top up" title="Top up pool">
+        <SheetButton label="Top up" title="Top up pool" icon={Coins}>
           <TopUpPoolCard token={d.token as Address} pool={d.contractAddress as Address} decimals={decimals} />
         </SheetButton>
-        <SheetButton label="Admin" title="Admin controls">
+        <SheetButton label="Admin" title="Admin controls" icon={Settings2}>
           <AdminCard d={d} />
         </SheetButton>
       </div>
@@ -148,11 +141,12 @@ function OverviewActions({ d }: { d: Distribution }) {
   return null
 }
 
-function SheetButton({ label, title, children }: { label: string; title: string; children: ReactNode }) {
+function SheetButton({ label, title, icon: Icon, children }: { label: string; title: string; icon?: LucideIcon; children: ReactNode }) {
   return (
     <Sheet>
       <SheetTrigger asChild>
         <Button variant="outline" size="sm">
+          {Icon && <Icon />}
           {label}
         </Button>
       </SheetTrigger>
@@ -165,7 +159,6 @@ function SheetButton({ label, title, children }: { label: string; title: string;
 }
 
 function OverviewCard({ d, isOwner }: { d: Distribution; isOwner?: boolean }) {
-  const startTs = typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null
   const endTs = typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null
   const showClaim = isOwner && (d.type === "airdrop" || d.type === "vesting")
   return (
@@ -194,9 +187,10 @@ function OverviewCard({ d, isOwner }: { d: Distribution; isOwner?: boolean }) {
           )}
           <SummaryRow label="Creator" value={<AddressValue value={d.creator} href={`${EXPLORER}/address/${d.creator}`} />} />
           {d.type === "airdrop" && <SummaryRow label="Claim closes" value={endTs ? fmtTime(endTs) : "At deploy"} />}
-          {d.type === "vesting" && <SummaryRow label="Schedule" value={`${fmtTime(startTs ?? 0)} → ${fmtTime(endTs ?? 0)}`} />}
         </div>
+        {d.type === "vesting" && <VestingScheduleSummary d={d} />}
         {isOwner && d.type === "vesting" && d.contractAddress && <VestingPauseRow d={d} />}
+        {isOwner && d.type === "airdrop" && d.contractAddress && <AirdropPauseRow d={d} />}
         {showClaim && (
           <div className="space-y-3 border-t border-border pt-4">
             <div className="flex items-center justify-between gap-3">

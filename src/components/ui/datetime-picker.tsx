@@ -54,7 +54,9 @@ function DateTimePickerImpl({
           type="button"
           variant="outline"
           disabled={disabled}
-          className={cn("w-full justify-between font-normal", !date && "text-muted-foreground")}
+          // Match the Input field height/shape (h-8) so it lines up with the
+          // sibling inputs and action buttons in forms (default Button is h-10).
+          className={cn("h-8 w-full justify-between rounded-[4px] px-2.5 font-normal", !date && "text-muted-foreground")}
         >
           {date ? date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : placeholder}
           <CalendarIcon className="size-4 text-muted-foreground" />

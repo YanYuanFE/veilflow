@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react"
+import { Undo2, UserPlus, Upload, ClipboardList, BadgeCheck, Split } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { formatUnits, formatEther, type Address } from "viem"
 import { useAccount } from "wagmi"
@@ -185,6 +186,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
                 Wallet-mode disperses can leave dust in your subwallets — sweep any remainder back to your balance.
               </p>
               <Button variant="outline" size="sm" onClick={onRecover} disabled={!address || !!progress || recover.isPending}>
+                <Undo2 />
                 {recover.isPending ? "Recovering…" : "Recover to my balance"}
               </Button>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -230,7 +232,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
         </div>
 
         <textarea
-          className="min-h-28 w-full rounded-sm border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+          className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -243,6 +245,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
             disabled={!address}
             onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
           >
+            <UserPlus />
             Add my address
           </Button>
           <input
@@ -257,6 +260,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
             }}
           />
           <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+            <Upload />
             Upload CSV
           </Button>
           <span className="text-muted-foreground">
@@ -303,11 +307,13 @@ export function DisperseCard({ d }: { d: Distribution }) {
                 </div>
                 {needRegister && (
                   <Button size="sm" variant="outline" onClick={onRegister} disabled={!!progress || register.isPending}>
+                    <ClipboardList />
                     {register.isPending ? "Registering…" : "Register subwallets"}
                   </Button>
                 )}
                 {!needRegister && needApprove && (
                   <Button size="sm" variant="outline" onClick={onApprove} disabled={!!progress || approve.isPending || approveWallets.isPending}>
+                    <BadgeCheck />
                     {mode === "direct" ? "Approve operator" : "Approve token on subwallets"}
                   </Button>
                 )}
@@ -317,6 +323,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
         )}
 
         <Button onClick={onDisperse} disabled={!ready || !!progress}>
+          <Split />
           {progress ?? (entries.length ? `Disperse to ${entries.length}` : "Disperse")}
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}

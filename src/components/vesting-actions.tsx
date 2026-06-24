@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import { isAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem"
 import { toast } from "sonner"
+import { SquareCheck, Split as SplitIcon, ArrowRightLeft, Eye } from "lucide-react"
 import { useZamaSDK } from "@zama-fhe/react-sdk"
 import {
   usePartialClaim,
@@ -19,10 +20,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Kicker } from "@/components/editorial"
+import { Kicker, SectionHead } from "@/components/editorial"
+import { CopyButton } from "@/components/copy-button"
 import { shortAddr, fmtTime } from "@/lib/format"
 import { recordDisclosure } from "@/lib/api"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
+import { readableInk, type DistributionTheme } from "@/lib/theme"
+import { cn } from "@/lib/utils"
 
 function err(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -44,6 +48,7 @@ export function VestingActionsDialog({
   decimals,
   distributionId,
   self,
+  theme,
 }: {
   manager: Address
   vestingId: Hex
@@ -51,6 +56,7 @@ export function VestingActionsDialog({
   decimals: number
   distributionId?: string
   self?: Address
+  theme?: DistributionTheme
 }) {
   const sdk = useZamaSDK()
   const partial = usePartialClaim({ address: manager, encryptor: () => sdk.relayer })
@@ -79,6 +85,14 @@ export function VestingActionsDialog({
     } catch {
       return undefined
     }
+  })()
+
+  // Live share readout for the split form — numerator/denominator as a percentage.
+  const splitPct = (() => {
+    const n = Number(splitNum)
+    const d = Number(splitDen)
+    if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0 || n < 0) return null
+    return (n / d) * 100
   })()
 
   const onPartial = async () => {
@@ -153,24 +167,38 @@ export function VestingActionsDialog({
     }
   }
 
+  // This dialog renders in a portal outside the claim page's themed wrapper, so
+  // re-apply the distribution's configured accent (and mode) here — otherwise it
+  // falls back to the default seal instead of the brand color.
+  const brandStyle = theme?.accent
+    ? ({ "--seal": theme.accent, "--seal-foreground": readableInk(theme.accent) } as CSSProperties)
+    : undefined
+
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost">
           Manage
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85svh] overflow-y-auto">
+      <DialogContent className={cn("max-h-[85svh] overflow-y-auto", theme?.mode === "dark" && "dark")} style={brandStyle}>
         <DialogHeader>
           <DialogTitle>Manage this vesting</DialogTitle>
           <DialogDescription>
-            Advanced actions for <span className="font-mono">{shortAddr(vestingId)}</span>. Amounts stay encrypted.
+            Advanced actions for{" "}
+            <span className="inline-flex items-center gap-0.5 align-middle">
+              <span title={vestingId} className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.6875rem] text-foreground">
+                {shortAddr(vestingId)}
+              </span>
+              <CopyButton value={vestingId} title="Copy vesting id" />
+            </span>
+            . Amounts stay encrypted.
           </DialogDescription>
         </DialogHeader>
 
         {/* Partial claim */}
         <section className="space-y-2 border-t border-border pt-4">
-          <Kicker className="tracking-[0.12em]">Partial claim</Kicker>
+          <SectionHead icon={SquareCheck}>Partial claim</SectionHead>
           <p className="text-xs text-muted-foreground">Claim a specific amount of what's currently vested, rather than all of it.</p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 space-y-2">
@@ -185,7 +213,7 @@ export function VestingActionsDialog({
 
         {/* Split */}
         <section className="space-y-2 border-t border-border pt-4">
-          <Kicker className="tracking-[0.12em]">Split off a portion</Kicker>
+          <SectionHead icon={SplitIcon}>Split off a portion</SectionHead>
           {!splitEnabled ? (
             <p className="text-xs text-muted-foreground">Splitting isn't enabled on this manager.</p>
           ) : (
@@ -206,6 +234,11 @@ export function VestingActionsDialog({
                   <Input id="split-to" placeholder="0x…" value={splitTo} onChange={(e) => setSplitTo(e.target.value.trim())} />
                 </div>
               </div>
+              {splitPct != null && (
+                <p className="font-mono text-xs text-muted-foreground">
+                  Fraction: <span className="text-foreground">{splitPct.toFixed(1)}%</span> of total
+                </p>
+              )}
               <Button size="sm" onClick={onSplit} disabled={!isAddress(splitTo) || split.isPending}>
                 {split.isPending ? "Splitting…" : "Split vesting"}
               </Button>
@@ -215,7 +248,7 @@ export function VestingActionsDialog({
 
         {/* Transfer */}
         <section className="space-y-2 border-t border-border pt-4">
-          <Kicker className="tracking-[0.12em]">Transfer ownership</Kicker>
+          <SectionHead icon={ArrowRightLeft}>Transfer ownership</SectionHead>
           {hasPending ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
@@ -278,12 +311,13 @@ function DiscloseSection({
   const onDisclose = async () => {
     if (!isAddress(party)) return
     try {
-      await disclose.mutateAsync({ vestingId, party: party as Address, disclosureType: dtype })
-      // Best-effort: record so the auditor can reverse-look-up what was disclosed to them.
+      const { handle } = await disclose.mutateAsync({ vestingId, party: party as Address, disclosureType: dtype })
+      // Best-effort: record so the auditor can reverse-look-up + decrypt the disclosed handle.
       void recordDisclosure({
         distributionId,
         manager,
         vestingId,
+        handle,
         party: party as Address,
         disclosureType: dtype,
         recipient: self,
@@ -297,7 +331,7 @@ function DiscloseSection({
 
   return (
     <section className="space-y-2 border-t border-border pt-4">
-      <Kicker className="tracking-[0.12em]">Disclose to a party</Kicker>
+      <SectionHead icon={Eye}>Disclose to a party</SectionHead>
       <p className="text-xs text-muted-foreground">
         Grant someone read-only access to one of your figures (e.g. a lender or accountant). Irreversible.
       </p>

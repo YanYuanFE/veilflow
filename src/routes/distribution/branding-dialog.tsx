@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from "react"
+import { Palette, Check } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -56,6 +57,7 @@ export function BrandingDialog({ d }: { d: Distribution }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
+          <Palette />
           Customize
         </Button>
       </DialogTrigger>
@@ -97,7 +99,7 @@ export function BrandingDialog({ d }: { d: Distribution }) {
                 type="color"
                 value={accent}
                 onChange={(e) => setAccent(e.target.value)}
-                className="h-8 w-10 shrink-0 cursor-pointer rounded-sm border border-input bg-transparent p-0.5"
+                className="h-8 w-10 shrink-0 cursor-pointer rounded-[4px] border border-input bg-transparent p-0.5"
               />
               <Input value={accent} onChange={(e) => setAccent(e.target.value)} className="font-mono" />
             </div>
@@ -118,7 +120,7 @@ export function BrandingDialog({ d }: { d: Distribution }) {
             placeholder="Only you can read your own figure…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="min-h-20 w-full rounded-sm border border-input bg-transparent p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            className="min-h-20 w-full rounded-[4px] border border-input bg-transparent p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           />
         </div>
 
@@ -154,6 +156,7 @@ export function BrandingDialog({ d }: { d: Distribution }) {
         </div>
 
         <Button onClick={save} disabled={saving}>
+          <Check />
           {saving ? "Saving…" : "Save branding"}
         </Button>
       </DialogContent>

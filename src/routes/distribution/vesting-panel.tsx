@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react"
+import { Rocket, RefreshCw, UserPlus, Upload, Plus, Pause, Play, Ban, Eye, Settings2, CalendarRange } from "lucide-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { isAddress, formatUnits, type Address, type Hex } from "viem"
 import { useAccount, usePublicClient } from "wagmi"
@@ -18,9 +19,11 @@ import {
   useUnpause,
   useBatchRevokeVesting,
   useManagerMaxRevokeBatchSize,
+  useVestingInfo,
 } from "@tokenops/sdk/fhe-vesting/react"
 import { DisclosureType } from "@tokenops/sdk/fhe-vesting"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,7 +50,26 @@ import { err, randomSalt, numberConfig } from "./shared"
 import { GoLiveDialog } from "./go-live-dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import { CopyButton } from "@/components/copy-button"
+import { useReactTable, getCoreRowModel, flexRender, type ColumnDef, type RowSelectionState } from "@tanstack/react-table"
 import { VestingAdminViewsCard, VestingClaimerCard } from "./vesting-admin"
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { VestingTimeline } from "@/components/vesting-timeline"
+import {
+  type VestingSchedule,
+  scheduleFromConfig,
+  describeSchedule,
+  useRepresentativeSchedule,
+} from "@/lib/vesting-schedule"
 
 export function VestingDeployCard({ d }: { d: Distribution }) {
   const queryClient = useQueryClient()
@@ -71,7 +93,7 @@ export function VestingDeployCard({ d }: { d: Distribution }) {
       await patchDistribution(d.id, { status: "deploying" })
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
       setPhase("Deploying manager…")
-      const res = await create.mutateAsync({ token: d.token as Address, userSalt: randomSalt() })
+      const res = await create.mutateAsync({ token: d.token as Address, userSalt: randomSalt(), splitEnabled: d.config.splitEnabled === true })
       setDeployed({ manager: res.manager, hash: res.hash })
       await writeBack(res.manager, res.hash)
       toast.success("Vesting manager deployed")
@@ -93,6 +115,7 @@ export function VestingDeployCard({ d }: { d: Distribution }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <Button onClick={onDeploy} disabled={!isConnected || !!phase}>
+          <Rocket />
           {phase ?? "Deploy manager"}
         </Button>
         {deployed && !d.contractAddress && (
@@ -110,6 +133,7 @@ export function VestingDeployCard({ d }: { d: Distribution }) {
                   })
               }
             >
+              <RefreshCw />
               Retry write-back
             </Button>
           </Notice>
@@ -240,7 +264,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
             </Notice>
           )}
           <textarea
-            className="min-h-28 w-full rounded-sm border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
+            className="min-h-28 w-full rounded-[4px] border border-input bg-transparent p-3 font-mono text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
             placeholder={"0xRecipient…, 100\n0xAnother…, 250"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -253,6 +277,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
               disabled={!address}
               onClick={() => address && setInput((v) => `${v}${v && !v.endsWith("\n") ? "\n" : ""}${address}, `)}
             >
+              <UserPlus />
               Add my address
             </Button>
             <input
@@ -267,6 +292,7 @@ export function VestingManageCard({ d }: { d: Distribution }) {
               }}
             />
             <Button variant="outline" size="sm" type="button" onClick={() => fileRef.current?.click()}>
+              <Upload />
               Upload CSV
             </Button>
             <span className="text-muted-foreground">
@@ -291,28 +317,143 @@ export function VestingManageCard({ d }: { d: Distribution }) {
           )}
           <RecipientPreview entries={entries} issued={existing} decimals={decimals} issuedLabel="Vesting" />
           <Button onClick={onAdd} disabled={fresh.length === 0 || !!progress}>
+            <Plus />
             {progress ?? (fresh.length ? `Create ${fresh.length} vesting${fresh.length === 1 ? "" : "s"}` : "Create vestings")}
           </Button>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recipients ({recipientsQ.data?.length ?? 0})</CardTitle>
-          <CardDescription>On-chain vesting recipients. Amounts are encrypted — not shown.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {recipientsQ.data?.length === 0 && <p className="text-sm text-muted-foreground">No recipients yet.</p>}
-          {recipientsQ.data?.map((r) => (
-            <div key={r} className="flex items-center justify-between gap-3 rounded-md border p-2 text-sm">
-              <span className="font-mono">{shortAddr(r)}</span>
-              <RecipientManageSheet d={d} recipient={r as Address} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <RecipientsTable d={d} />
     </div>
+  )
+}
+
+// Recipients as a selectable data table — pick rows, then batch-disclose or batch-revoke
+// across the selection from the toolbar (top-right). Per-row Manage handles one recipient.
+function RecipientsTable({ d }: { d: Distribution }) {
+  const manager = d.contractAddress as Address
+  const queryClient = useQueryClient()
+  const recipientsQ = useAllRecipients({ address: manager })
+  const data = useMemo(() => (recipientsQ.data ?? []) as Address[], [recipientsQ.data])
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
+  const columns = useMemo<ColumnDef<Address>[]>(
+    () => [
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllRowsSelected() ? true : table.getIsSomeRowsSelected() ? "indeterminate" : false}
+            onCheckedChange={(v) => table.toggleAllRowsSelected(!!v)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox checked={row.getIsSelected()} onCheckedChange={(v) => row.toggleSelected(!!v)} aria-label="Select row" />
+        ),
+        enableSorting: false,
+      },
+      {
+        id: "recipient",
+        header: "Recipient",
+        cell: ({ row }) => (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="font-mono text-foreground">{shortAddr(row.original)}</span>
+            <CopyButton value={row.original} title="Copy address" />
+            <RecipientRevokeBadge manager={manager} recipient={row.original} />
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => "Action",
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <RecipientManageSheet d={d} recipient={row.original} />
+          </div>
+        ),
+      },
+    ],
+    [d, manager],
+  )
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { rowSelection },
+    onRowSelectionChange: setRowSelection,
+    getRowId: (r) => r,
+    enableRowSelection: true,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  const selected = table.getSelectedRowModel().rows.map((r) => r.original)
+  const afterBatch = () => {
+    setRowSelection({})
+    void queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
+    void recipientsQ.refetch()
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>Recipients ({data.length})</CardTitle>
+            <CardDescription>On-chain vesting recipients. Amounts are encrypted — not shown.</CardDescription>
+          </div>
+          {selected.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{selected.length} selected</span>
+              <Sheet onOpenChange={(o) => !o && setRowSelection({})}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Eye />
+                    Disclose
+                  </Button>
+                </SheetTrigger>
+                <SheetContent aria-describedby={undefined}>
+                  <SheetTitle className="sr-only">Disclose to auditor</SheetTitle>
+                  <div className="p-6 pt-12">
+                    <VestingDisclosureCard d={d} recipients={selected} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <VestingRevokeCard d={d} recipients={selected} onDone={afterBatch} bare />
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No recipients yet.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((h) => (
+                    <TableHead key={h.id} className={h.id === "actions" ? "text-right" : undefined}>
+                      {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() ? "selected" : undefined}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -359,83 +500,134 @@ export function VestingPauseRow({ d }: { d: Distribution }) {
         onClick={onTogglePause}
         disabled={pausing || pausedQ.isLoading}
       >
+        {isPaused ? <Play /> : <Pause />}
         {pausing ? "…" : isPaused ? "Resume" : "Pause"}
       </Button>
     </div>
   )
 }
 
-function VestingRevokeCard({ d, recipient }: { d: Distribution; recipient: Address }) {
+function VestingRevokeCard({
+  d,
+  recipient,
+  recipients,
+  onDone,
+  bare,
+}: {
+  d: Distribution
+  recipient?: Address
+  recipients?: readonly Address[]
+  onDone?: () => void
+  // bare = no Card wrapper, just the confirm button (for the recipients-table toolbar).
+  bare?: boolean
+}) {
   const manager = d.contractAddress as Address
   const isRevocable = d.config.isRevocable === true
-  const revokeVestingsQ = useRecipientVestings({ address: manager, recipient })
-  const revokeVestingIds = revokeVestingsQ.data ?? []
   const maxRevokeQ = useManagerMaxRevokeBatchSize({ address: manager })
   const batchRevoke = useBatchRevokeVesting({ address: manager })
   const confirm = useConfirmTx()
 
+  // Revoke every vesting of one recipient (Manage sheet) or a selected subset (recipients table).
+  const targets = useMemo<readonly Address[]>(() => recipients ?? (recipient ? [recipient] : []), [recipients, recipient])
+  const single = targets.length === 1
+  const [idsByRecipient, setIdsByRecipient] = useState<Record<string, readonly Hex[]>>({})
+  const onCollected = useCallback(
+    (r: Address, ids: readonly Hex[]) => setIdsByRecipient((prev) => (prev[r] === ids ? prev : { ...prev, [r]: ids })),
+    [],
+  )
+  const loaded = targets.length > 0 && targets.every((r) => idsByRecipient[r] !== undefined)
+  const revokeVestingIds = useMemo(() => targets.flatMap((r) => idsByRecipient[r] ?? []), [targets, idsByRecipient])
+
   const onRevoke = async () => {
     if (revokeVestingIds.length === 0) return
     try {
-      // Revoke all of this recipient's vestings, chunked to the manager's cap.
+      // Revoke every selected vesting, chunked to the manager's cap.
       const max = maxRevokeQ.data && maxRevokeQ.data > 0n ? Number(maxRevokeQ.data) : 50
       for (let i = 0; i < revokeVestingIds.length; i += max) {
         const hash = await batchRevoke.mutateAsync({ vestingIds: revokeVestingIds.slice(i, i + max) })
         await confirm(hash)
       }
-      await revokeVestingsQ.refetch()
       toast.success(`Revoked ${revokeVestingIds.length} vesting${revokeVestingIds.length === 1 ? "" : "s"}`)
+      onDone?.()
     } catch (e) {
       toast.error(err(e))
     }
   }
+
+  const whose = single
+    ? `${shortAddr(targets[0])}'s ${revokeVestingIds.length === 1 ? "vesting" : `${revokeVestingIds.length} vestings`}`
+    : `${targets.length} recipients' ${revokeVestingIds.length} vesting${revokeVestingIds.length === 1 ? "" : "s"}`
+
+  // Invisible id collectors + the confirm-to-revoke control (an AlertDialog). Bare in the
+  // table toolbar; Card-wrapped in the per-recipient Manage sheet.
+  const control = (
+    <>
+      {targets.map((r) => (
+        <VestingIdsCollector key={r} manager={manager} recipient={r} onCollected={onCollected} />
+      ))}
+      {!isRevocable ? (
+        bare ? null : (
+          <p className="text-xs text-muted-foreground">
+            Grants in this distribution were created non-revocable — they can't be revoked.
+          </p>
+        )
+      ) : (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="destructive"
+              size={bare ? "sm" : undefined}
+              disabled={revokeVestingIds.length === 0 || !loaded || batchRevoke.isPending}
+            >
+              <Ban />
+              {batchRevoke.isPending
+                ? "Revoking…"
+                : !loaded
+                  ? "Loading…"
+                  : bare
+                    ? "Revoke"
+                    : revokeVestingIds.length > 1
+                      ? `Revoke ${revokeVestingIds.length} vestings…`
+                      : "Revoke vesting…"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Revoke {revokeVestingIds.length === 1 ? "this vesting" : `${revokeVestingIds.length} vestings`}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Ends <span className="text-foreground">{whose}</span> on-chain. This is an admin action and can't be undone
+                from here.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={onRevoke}>Revoke</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </>
+  )
+
+  if (bare) return control
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Revoke vesting</CardTitle>
         <CardDescription>
-          Ends this recipient's vesting on-chain. Requires the manager's revoker role. Irreversible.
+          Ends {single ? "this recipient's" : "the selected recipients'"} vesting on-chain. Requires the manager's revoker
+          role. Irreversible.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {!isRevocable ? (
-          <p className="text-xs text-muted-foreground">
-            Grants in this distribution were created non-revocable — they can't be revoked.
+        {control}
+        {loaded && revokeVestingIds.length === 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No vesting found for {single ? "this recipient" : "the selected recipients"}.
           </p>
-        ) : (
-          <>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={revokeVestingIds.length === 0 || batchRevoke.isPending}>
-                  {batchRevoke.isPending
-                    ? "Revoking…"
-                    : revokeVestingIds.length > 1
-                      ? `Revoke ${revokeVestingIds.length} vestings…`
-                      : "Revoke vesting…"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Revoke {revokeVestingIds.length === 1 ? "this vesting" : `${revokeVestingIds.length} vestings`}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Ends <span className="font-mono text-foreground">{shortAddr(recipient)}</span>'s{" "}
-                    {revokeVestingIds.length === 1 ? "vesting" : `${revokeVestingIds.length} vestings`} on-chain. This is an
-                    admin action and can't be undone from here.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={onRevoke}>Revoke</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            {!revokeVestingsQ.isLoading && revokeVestingIds.length === 0 && (
-              <p className="mt-2 text-xs text-muted-foreground">No vesting found for this recipient.</p>
-            )}
-          </>
         )}
       </CardContent>
     </Card>
@@ -449,45 +641,34 @@ const DISCLOSURE_TYPES = [
   { value: DisclosureType.SettledAmount, label: "Settled (claimed) amount" },
 ]
 
-// Sentinel for the recipient selector: disclose the chosen figure to one auditor
-// across every recipient's vestings in a single transaction.
-const ALL_RECIPIENTS = "__all__"
-
-export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Distribution; recipient?: Address }) {
+export function VestingDisclosureCard({
+  d,
+  recipient,
+  recipients,
+}: {
+  d: Distribution
+  recipient?: Address
+  recipients?: readonly Address[]
+}) {
   const manager = d.contractAddress as Address
-  const recipientsQ = useAllRecipients({ address: manager })
-  const [recipientState, setRecipient] = useState("")
-  const recipient = lockedRecipient ?? recipientState
   const [party, setParty] = useState("")
   const [dtype, setDtype] = useState<DisclosureType>(DisclosureType.TotalAllocation)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [shared, setShared] = useState<string>()
 
-  // "All recipients" is only selectable in the standalone (non-locked) admin card.
-  const isAll = !lockedRecipient && recipientState === ALL_RECIPIENTS
-  const allRecipients = useMemo(() => recipientsQ.data ?? [], [recipientsQ.data])
-
-  // Single-recipient path: read just the selected recipient's vestings.
-  const vestingsQ = useRecipientVestings({
-    address: manager,
-    recipient: isAddress(recipient) ? (recipient as Address) : undefined,
-  })
-
-  // All-recipients path: fan out one read per recipient (collectors rendered below)
-  // and aggregate their vesting ids so we can disclose across everyone in one tx.
+  // The recipients to disclose across — an explicit subset (from the recipients table) or a
+  // single recipient (from their Manage sheet). Fan out one vesting-id read per target.
+  const targets = useMemo<readonly Address[]>(() => recipients ?? (recipient ? [recipient] : []), [recipients, recipient])
+  const single = targets.length === 1
   const [idsByRecipient, setIdsByRecipient] = useState<Record<string, readonly Hex[]>>({})
   const onCollected = useCallback(
     (r: Address, ids: readonly Hex[]) => setIdsByRecipient((prev) => (prev[r] === ids ? prev : { ...prev, [r]: ids })),
     [],
   )
-  const allLoaded = isAll && allRecipients.length > 0 && allRecipients.every((r) => idsByRecipient[r] !== undefined)
-  const allIds = useMemo(
-    () => (isAll ? allRecipients.flatMap((r) => idsByRecipient[r] ?? []) : []),
-    [isAll, allRecipients, idsByRecipient],
-  )
+  const loaded = targets.length > 0 && targets.every((r) => idsByRecipient[r] !== undefined)
+  const vestingIds = useMemo(() => targets.flatMap((r) => idsByRecipient[r] ?? []), [targets, idsByRecipient])
 
-  const vestingIds = isAll ? allIds : vestingsQ.data ?? []
   const disclose = useAdminBatchDiscloseToParty({ address: manager })
   const typeLabel = DISCLOSURE_TYPES.find((t) => t.value === dtype)?.label ?? "figure"
 
@@ -497,29 +678,30 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
     setBusy(true)
     try {
       // Disclose the chosen figure across every selected vesting in one tx.
-      await disclose.mutateAsync({
+      const { handles } = await disclose.mutateAsync({
         vestingIds,
         disclosureTypes: vestingIds.map(() => dtype),
         party: party as Address,
       })
       toast.success("Disclosed to auditor — read-only & irreversible")
-      // Record each so the auditor can reverse-look-up what was disclosed. Non-blocking.
-      // Attribute each vesting to its owning recipient (matters in all-recipients mode).
-      const records = isAll
-        ? allRecipients.flatMap((r) => (idsByRecipient[r] ?? []).map((vid) => ({ vid, owner: r })))
-        : vestingIds.map((vid) => ({ vid, owner: recipient as Address }))
-      records.forEach(({ vid, owner }) =>
+      // handles[i] ↔ vestingIds[i]; attribute each to its owning recipient.
+      const owners = targets.flatMap((r) => (idsByRecipient[r] ?? []).map(() => r))
+      vestingIds.forEach((vid, i) =>
         void recordDisclosure({
           distributionId: d.id,
           manager,
           vestingId: vid,
+          handle: handles[i],
           party: party as Address,
           disclosureType: dtype,
-          recipient: owner,
+          recipient: owners[i],
         }).catch(() => {}),
       )
-      // The audit deep-link is per-vesting; only meaningful for a single recipient.
-      setShared(isAll ? undefined : `/audit?manager=${manager}&vesting=${vestingIds[0]}&type=${dtype}`)
+      // A single recipient gets a per-vesting deep-link; a batch spans many vestings, so we
+      // link to the manager and let the auditor connect their wallet — the audit page lists
+      // every figure disclosed to them by party.
+      const path = single ? `/audit?manager=${manager}&vesting=${vestingIds[0]}&type=${dtype}` : `/audit?manager=${manager}`
+      setShared(`${window.location.origin}${path}`)
       setParty("")
     } catch (e) {
       setError(err(e))
@@ -534,63 +716,46 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
       <CardHeader>
         <CardTitle>Selective disclosure</CardTitle>
         <CardDescription>
-          Grant an auditor read-only access to a recipient's encrypted vesting figure. Irreversible — ACL grants are
-          append-only and can't be revoked.
+          Grant an auditor read-only access to {single ? "this recipient's" : `${targets.length} recipients'`} encrypted
+          vesting figure in one transaction. Irreversible — ACL grants are append-only and can't be revoked.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className={`grid gap-3 ${lockedRecipient ? "" : "sm:grid-cols-2"}`}>
-          {!lockedRecipient && (
-            <div className="space-y-2">
-              <Label htmlFor="disc-recipient">Recipient</Label>
-              <Select value={recipientState || undefined} onValueChange={setRecipient}>
-                <SelectTrigger id="disc-recipient" className="w-full">
-                  <SelectValue placeholder="Select recipient…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_RECIPIENTS}>All recipients</SelectItem>
-                  {recipientsQ.data?.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {shortAddr(r)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="disc-type">Disclose</Label>
-            <Select value={String(dtype)} onValueChange={(v) => setDtype(Number(v) as DisclosureType)}>
-              <SelectTrigger id="disc-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DISCLOSURE_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={String(t.value)}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="disc-type">Disclose</Label>
+          <Select value={String(dtype)} onValueChange={(v) => setDtype(Number(v) as DisclosureType)}>
+            <SelectTrigger id="disc-type" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DISCLOSURE_TYPES.map((t) => (
+                <SelectItem key={t.value} value={String(t.value)}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="disc-party">Auditor address</Label>
           <Input id="disc-party" placeholder="0x…" value={party} onChange={(e) => setParty(e.target.value.trim())} />
         </div>
-        {/* All-recipients mode: fan out one read per recipient to collect their vesting ids. */}
-        {isAll && allRecipients.map((r) => <VestingIdsCollector key={r} manager={manager} recipient={r} onCollected={onCollected} />)}
-        {isAll && (
+        {/* Collect each target recipient's vesting ids (one read per recipient). */}
+        {targets.map((r) => (
+          <VestingIdsCollector key={r} manager={manager} recipient={r} onCollected={onCollected} />
+        ))}
+        {!single && (
           <p className="text-xs text-muted-foreground">
-            {allLoaded
-              ? `Discloses ${typeLabel.toLowerCase()} for all ${allRecipients.length} recipient${allRecipients.length === 1 ? "" : "s"} · ${vestingIds.length} vesting${vestingIds.length === 1 ? "" : "s"} in one transaction.`
+            {loaded
+              ? `Discloses ${typeLabel.toLowerCase()} for ${targets.length} recipients · ${vestingIds.length} vesting${vestingIds.length === 1 ? "" : "s"} in one transaction.`
               : "Loading recipients…"}
           </p>
         )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button disabled={vestingIds.length === 0 || !isAddress(party) || busy || (isAll && !allLoaded)}>
-              {busy ? "Disclosing…" : isAll && !allLoaded ? "Loading recipients…" : "Disclose to auditor"}
+            <Button disabled={vestingIds.length === 0 || !isAddress(party) || busy || !loaded}>
+              <Eye />
+              {busy ? "Disclosing…" : !loaded ? "Loading…" : "Disclose to auditor"}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -598,17 +763,11 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
               <AlertDialogTitle>Disclose to auditor?</AlertDialogTitle>
               <AlertDialogDescription>
                 You're granting <span className="font-mono text-foreground">{shortAddr(party)}</span> read-only access to{" "}
-                {isAll ? (
-                  <span className="text-foreground">
-                    all {allRecipients.length} recipients' {typeLabel.toLowerCase()} across {vestingIds.length} vesting
-                    {vestingIds.length === 1 ? "" : "s"}
-                  </span>
-                ) : (
-                  <>
-                    <span className="font-mono text-foreground">{shortAddr(recipient)}</span>'s{" "}
-                    <span className="text-foreground">{typeLabel.toLowerCase()}</span>
-                  </>
-                )}
+                <span className="text-foreground">
+                  {single ? `${shortAddr(targets[0])}'s ` : `${targets.length} recipients' `}
+                  {typeLabel.toLowerCase()}
+                  {!single && ` across ${vestingIds.length} vesting${vestingIds.length === 1 ? "" : "s"}`}
+                </span>
                 . This is <span className="text-foreground">irreversible</span> — ACL grants are append-only and cannot be
                 revoked.
               </AlertDialogDescription>
@@ -619,16 +778,27 @@ export function VestingDisclosureCard({ d, recipient: lockedRecipient }: { d: Di
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {isAddress(recipient) && !vestingsQ.isLoading && vestingIds.length === 0 && (
-          <p className="text-xs text-muted-foreground">No vesting found for that recipient.</p>
+        {loaded && vestingIds.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No vesting found for {single ? "that recipient" : "the selected recipients"}.
+          </p>
         )}
         {shared && (
-          <p className="break-all text-xs text-muted-foreground">
-            Share with the auditor:{" "}
-            <a className="font-mono underline" href={shared}>
-              {shared}
-            </a>
-          </p>
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <Kicker className="tracking-[0.12em]">Share with the auditor</Kicker>
+            {!single && (
+              <p className="text-xs text-muted-foreground">
+                Disclosed across {vestingIds.length} vesting{vestingIds.length === 1 ? "" : "s"}. The auditor connects this
+                wallet to read every figure disclosed to them.
+              </p>
+            )}
+            <div className="flex items-center gap-1.5">
+              <a className="min-w-0 flex-1 truncate font-mono text-xs underline" href={shared} target="_blank" rel="noreferrer">
+                {shared}
+              </a>
+              <CopyButton value={shared} title="Copy audit link" />
+            </div>
+          </div>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
@@ -661,7 +831,8 @@ function RecipientManageSheet({ d, recipient }: { d: Distribution; recipient: Ad
     <Sheet>
       <SheetTrigger asChild>
         <Button variant="ghost" size="sm">
-          Manage →
+          <Settings2 />
+          Manage
         </Button>
       </SheetTrigger>
       <SheetContent aria-describedby={undefined}>
@@ -693,4 +864,96 @@ function RecipientManageSheet({ d, recipient }: { d: Distribution; recipient: Ad
       </SheetContent>
     </Sheet>
   )
+}
+
+// Decide the schedule source: read the representative vesting on-chain once deployed, else fall
+// back to the create-time config — the chain is the source of truth, the DB snapshot can drift.
+export function VestingScheduleSummary({ d }: { d: Distribution }) {
+  return d.contractAddress ? (
+    <OnchainScheduleSummary manager={d.contractAddress as Address} d={d} />
+  ) : (
+    <ScheduleView schedule={scheduleFromConfig(d)} />
+  )
+}
+
+function OnchainScheduleSummary({ manager, d }: { manager: Address; d: Distribution }) {
+  const { schedule } = useRepresentativeSchedule(manager, d)
+  return <ScheduleView schedule={schedule} />
+}
+
+// Unlock rules as a sentence on the Overview; "View chart" opens the public unlock curve.
+function ScheduleView({ schedule: s }: { schedule: VestingSchedule }) {
+  return (
+    <div className="space-y-2 border-t border-border pt-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Kicker className="tracking-[0.12em]">Unlock schedule</Kicker>
+          <Badge variant="secondary">{s.isRevocable ? "Revocable" : "Non-revocable"}</Badge>
+        </div>
+        {s.end > s.start && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <CalendarRange />
+                View chart
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Unlock curve</DialogTitle>
+                <DialogDescription>The unlock shape is public; recipient amounts stay encrypted.</DialogDescription>
+              </DialogHeader>
+              <VestingTimeline
+                start={s.start}
+                end={s.end}
+                cliffSeconds={s.cliffSeconds}
+                releaseIntervalSecs={s.releaseIntervalSecs}
+                initialUnlockBps={s.initialUnlockBps}
+                cliffAmountBps={s.cliffAmountBps}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">{describeSchedule(s)}</p>
+    </div>
+  )
+}
+
+// Per-row revoke indicator for the recipients table: probes each of this recipient's vestings
+// on-chain and badges any that are revoked (revokeTimestamp > 0) — state the DB doesn't track.
+function RecipientRevokeBadge({ manager, recipient }: { manager: Address; recipient: Address }) {
+  const vestingsQ = useRecipientVestings({ address: manager, recipient })
+  const ids = vestingsQ.data ?? []
+  const [revoked, setRevoked] = useState<Record<string, boolean>>({})
+  const onResult = useCallback(
+    (id: Hex, r: boolean) => setRevoked((prev) => (prev[id] === r ? prev : { ...prev, [id]: r })),
+    [],
+  )
+  const count = ids.filter((id) => revoked[id]).length
+  return (
+    <>
+      {ids.map((id) => (
+        <RevokeProbe key={id} manager={manager} vestingId={id} onResult={onResult} />
+      ))}
+      {count > 0 && <Badge variant="destructive">{count === ids.length ? "Revoked" : `${count} revoked`}</Badge>}
+    </>
+  )
+}
+
+function RevokeProbe({
+  manager,
+  vestingId,
+  onResult,
+}: {
+  manager: Address
+  vestingId: Hex
+  onResult: (id: Hex, revoked: boolean) => void
+}) {
+  const infoQ = useVestingInfo({ address: manager, vestingId })
+  const revoked = (infoQ.data?.revokeTimestamp ?? 0) > 0
+  useEffect(() => {
+    if (infoQ.data) onResult(vestingId, revoked)
+  }, [infoQ.data, vestingId, revoked, onResult])
+  return null
 }

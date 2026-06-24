@@ -1,11 +1,11 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
+import { useState, type CSSProperties, type ReactNode } from "react"
 import { useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
-import { Lock } from "lucide-react"
+import { Lock, Unlock, ShieldCheck, Eye } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
   useGetClaimAmount,
@@ -20,6 +20,7 @@ import {
   useManagerPaused,
   useGetClaimableAmount,
   useClaim as useVestingClaim,
+  useVestingInfo,
 } from "@tokenops/sdk/fhe-vesting/react"
 import { FeeType } from "@tokenops/sdk/fhe-vesting"
 import { Button } from "@/components/ui/button"
@@ -27,11 +28,15 @@ import { Redaction } from "@/components/ui/redaction"
 import { StatusBadge } from "@/components/status-badge"
 import { VestingActionsDialog, AcceptIncomingTransfer } from "@/components/vesting-actions"
 import { VestingTimeline } from "@/components/vesting-timeline"
+import { Badge } from "@/components/ui/badge"
+import { useRepresentativeSchedule } from "@/lib/vesting-schedule"
 import { Kicker, Folio, Notice } from "@/components/editorial"
+import { CopyButton } from "@/components/copy-button"
 import { Loading } from "@/components/spinner"
 import { getDistributionBySlug, listRecipients, type Distribution } from "@/lib/api"
 import { useTokenMeta } from "@/lib/tokens"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
+import { useNowSeconds } from "@/lib/use-now"
 import { shortAddr, fmtTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { parseTheme, readableInk, type DistributionTheme } from "@/lib/theme"
@@ -66,11 +71,7 @@ export function Claim() {
   const { slug } = useParams<{ slug: string }>()
   const { isConnected } = useAccount()
 
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
-  useEffect(() => {
-    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000)
-    return () => clearInterval(id)
-  }, [])
+  const now = useNowSeconds()
 
   const distQ = useQuery({
     queryKey: ["claim-distribution", slug],
@@ -130,9 +131,6 @@ export function Claim() {
               {(start || end) && <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>}
               <StatusBadge status={d.status} />
             </div>
-            <p className="mt-4 font-display text-[clamp(1.75rem,5vw,2.5rem)] leading-none tracking-tight text-foreground">
-              {meta.symbol ?? shortAddr(d.token)}
-            </p>
             <div className="mt-7">
             {d.type === "disperse" ? (
               <div className="space-y-2">
@@ -177,7 +175,7 @@ export function Claim() {
             ) : !isConnected ? (
               <ConnectPrompt />
             ) : (
-              <VestingClaimPanel d={d} decimals={decimals} symbol={meta.symbol} startsIn={notStarted ? start! - now : null} />
+              <VestingClaimPanel d={d} decimals={decimals} symbol={meta.symbol} startsIn={notStarted ? start! - now : null} theme={theme} />
             )}
             </div>
             <p className="mt-7 flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground">
@@ -186,18 +184,8 @@ export function Claim() {
             </p>
           </div>
 
-          {/* Vesting unlock schedule — public shape, sealed amounts (bottom) */}
-          {d.type === "vesting" && start != null && end != null && (
-            <div className="border-t border-border px-6 py-6 sm:px-8">
-              <VestingTimeline
-                start={start}
-                end={end}
-                cliffSeconds={typeof d.config.cliffSeconds === "number" ? d.config.cliffSeconds : 0}
-                initialUnlockBps={typeof d.config.initialUnlockBps === "number" ? d.config.initialUnlockBps : 0}
-                cliffAmountBps={typeof d.config.cliffAmountBps === "number" ? d.config.cliffAmountBps : 0}
-              />
-            </div>
-          )}
+          {/* Vesting unlock schedule — public shape from the on-chain representative vesting */}
+          {d.type === "vesting" && d.contractAddress && <PublicVestingTimeline manager={d.contractAddress as Address} d={d} />}
         </div>
       </div>
     </ClaimFrame>
@@ -319,6 +307,7 @@ function AirdropClaimPanel({
   const getAmount = useGetClaimAmount({ address: airdrop })
   const claim = useClaim({ address: airdrop })
   const confirm = useConfirmTx()
+  const [confirming, setConfirming] = useState(false)
   const [viewHandle, setViewHandle] = useState<Hex>()
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: airdrop }] : [] },
@@ -359,13 +348,16 @@ function AirdropClaimPanel({
   }
   const onClaim = async () => {
     if (!encryptedInput || !artifact?.signature) return
+    setConfirming(true)
     try {
       const hash = await claim.mutateAsync({ encryptedInput, signature: artifact.signature as Hex })
       await confirm(hash)
-      claimedQ.refetch() // re-read on-chain claimed state
+      await claimedQ.refetch() // re-read on-chain claimed state once the tx is mined
       toast.success("Claimed into your confidential balance")
     } catch (e) {
       toast.error(err(e))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -396,14 +388,15 @@ function AirdropClaimPanel({
       <div className="flex flex-wrap items-center justify-center gap-3">
         {!revealedNum && (
           <Button variant="outline" onClick={onReveal} disabled={revealing}>
+            <Eye />
             {revealing ? "Lifting the veil…" : "Decrypt my amount"}
           </Button>
         )}
-        <Button onClick={onClaim} disabled={claim.isPending || isClaimed || sigInvalid}>
-          {isClaimed ? "Claimed ✓" : claim.isPending ? "Claiming…" : "Claim tokens"}
+        <Button onClick={onClaim} disabled={confirming || isClaimed || sigInvalid}>
+          {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : isClaimed ? "Claimed ✓" : "Claim tokens"}
         </Button>
       </div>
-      {isClaimed && <ClaimedNote />}
+      {isClaimed && !confirming && <ClaimedNote />}
     </div>
   )
 }
@@ -413,11 +406,13 @@ function VestingClaimPanel({
   decimals,
   symbol,
   startsIn,
+  theme,
 }: {
   d: Distribution
   decimals: number
   symbol?: string
   startsIn: number | null
+  theme?: DistributionTheme
 }) {
   const { address } = useAccount()
   const manager = d.contractAddress as Address
@@ -462,6 +457,7 @@ function VestingClaimPanel({
             index={ids.length > 1 ? i + 1 : undefined}
             distributionId={d.id}
             self={address}
+            theme={theme}
           />
         ))}
       </div>
@@ -479,6 +475,7 @@ function VestingClaimItem({
   index,
   distributionId,
   self,
+  theme,
 }: {
   manager: Address
   vestingId: Hex
@@ -488,10 +485,14 @@ function VestingClaimItem({
   index?: number
   distributionId?: string
   self?: Address
+  theme?: DistributionTheme
 }) {
   const getClaimable = useGetClaimableAmount({ address: manager })
   const claim = useVestingClaim({ address: manager })
   const confirm = useConfirmTx()
+  const infoQ = useVestingInfo({ address: manager, vestingId })
+  const revoked = (infoQ.data?.revokeTimestamp ?? 0) > 0
+  const [confirming, setConfirming] = useState(false)
   const [viewHandle, setViewHandle] = useState<Hex>()
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: manager }] : [] },
@@ -516,6 +517,7 @@ function VestingClaimItem({
   }
   const onClaim = async () => {
     if (!fee) return
+    setConfirming(true)
     try {
       const hash = await claim.mutateAsync(
         fee.feeType === FeeType.Gas
@@ -527,17 +529,23 @@ function VestingClaimItem({
       toast.success("Claimed your vested tokens")
     } catch (e) {
       toast.error(err(e))
+    } finally {
+      setConfirming(false)
     }
   }
 
   return (
     <div className={cn("space-y-4", index && "rounded-md border border-border p-4")}>
-      {index && (
-        <div className="flex items-center justify-between gap-3">
-          <Kicker>Vesting № {index}</Kicker>
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-2">
+          <Kicker>{index ? `Vesting № ${index}` : "Vesting id"}</Kicker>
+          {revoked && <Badge variant="destructive">Revoked</Badge>}
+        </span>
+        <span className="inline-flex items-center gap-0.5">
           <Folio>{shortAddr(vestingId)}</Folio>
-        </div>
-      )}
+          <CopyButton value={vestingId} title="Copy vesting id" />
+        </span>
+      </div>
       <AllocationRow
         label="Claimable now"
         revealed={revealedNum}
@@ -549,11 +557,12 @@ function VestingClaimItem({
       <div className="flex flex-wrap items-center justify-center gap-3">
         {!revealedNum && (
           <Button variant="outline" onClick={onReveal} disabled={revealing}>
+            <Eye />
             {revealing ? "Lifting the veil…" : "Decrypt claimable"}
           </Button>
         )}
-        <Button onClick={onClaim} disabled={claim.isPending || !fee || claim.isSuccess || revealedZero}>
-          {claim.isSuccess ? "Claimed ✓" : claim.isPending ? "Claiming…" : "Claim vested"}
+        <Button onClick={onClaim} disabled={confirming || !fee || claim.isSuccess || revealedZero}>
+          {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : claim.isSuccess ? "Claimed ✓" : "Claim vested"}
         </Button>
         <VestingActionsDialog
           manager={manager}
@@ -562,9 +571,10 @@ function VestingClaimItem({
           decimals={decimals}
           distributionId={distributionId}
           self={self}
+          theme={theme}
         />
       </div>
-      {claim.isSuccess ? (
+      {claim.isSuccess && !confirming ? (
         <ClaimedNote />
       ) : (
         revealedZero && (
@@ -575,7 +585,8 @@ function VestingClaimItem({
   )
 }
 
-/** A labeled confidential figure — censor bar until the holder decrypts it. */
+/** A labeled confidential figure — sealed in a framed block (Lock + redacted
+ *  bar) until the holder decrypts it, then the bar lifts to reveal the number. */
 function AllocationRow({
   label,
   revealed,
@@ -591,25 +602,50 @@ function AllocationRow({
   decimals: number
   symbol?: string
 }) {
-  const text =
-    revealed && typeof value === "bigint" ? `${formatUnits(value, decimals)}${symbol ? ` ${symbol}` : ""}` : undefined
+  // Redact only the figure; the token symbol sits to its right as a visible unit.
+  const text = revealed && typeof value === "bigint" ? formatUnits(value, decimals) : undefined
   return (
-    <div className="claim-figure flex flex-col items-center gap-3 text-center">
-      <Kicker className="tracking-[0.14em]">{label}</Kicker>
-      <Redaction
-        revealed={revealed}
-        loading={loading}
-        chars={11}
-        className="font-mono text-[clamp(2.25rem,9vw,3.25rem)] leading-none font-medium text-foreground"
-      >
-        {text}
-      </Redaction>
-      {revealed && (
-        <span className="inline-flex items-center gap-1.5 text-[0.6875rem] tracking-[0.06em] text-muted-foreground uppercase">
-          <Lock className="size-3" aria-hidden />
-          Visible to you only
-        </span>
+    <div
+      className={cn(
+        "claim-figure relative overflow-hidden rounded-2xl border border-border px-5 py-5 text-left sm:px-6",
+        revealed ? "bg-card" : "claim-seal-frame bg-muted/25",
       )}
+    >
+      <div className="relative flex items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          <span className="inline-flex items-center gap-1.5">
+            {revealed ? (
+              <Unlock className="size-3 text-seal" aria-hidden />
+            ) : (
+              <Lock className="size-3 text-muted-foreground" aria-hidden />
+            )}
+            <Kicker className="tracking-[0.14em]">{label}</Kicker>
+          </span>
+          <Redaction
+            revealed={revealed}
+            loading={loading}
+            chars={7}
+            className="font-mono text-[clamp(1.75rem,6vw,2.75rem)] leading-none font-medium text-foreground"
+          >
+            {text}
+          </Redaction>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {symbol && (
+            <span className="font-mono text-lg leading-none font-medium text-foreground sm:text-xl">{symbol}</span>
+          )}
+          {revealed ? (
+            <span className="inline-flex items-center gap-1 text-[0.625rem] font-semibold tracking-[0.1em] text-seal uppercase">
+              <ShieldCheck className="size-3" aria-hidden />
+              Visible to you
+            </span>
+          ) : (
+            <span className="text-[0.625rem] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
+              Encrypted
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -623,5 +659,24 @@ function ClaimedNote() {
       </a>
       .
     </p>
+  )
+}
+
+// The public unlock curve at the bottom of the claim page — read from the representative vesting
+// on-chain (DB fallback while it loads) so it reflects the real on-chain terms.
+function PublicVestingTimeline({ manager, d }: { manager: Address; d: Distribution }) {
+  const { schedule: s } = useRepresentativeSchedule(manager, d)
+  if (!(s.end > s.start)) return null
+  return (
+    <div className="border-t border-border px-6 py-6 sm:px-8">
+      <VestingTimeline
+        start={s.start}
+        end={s.end}
+        cliffSeconds={s.cliffSeconds}
+        releaseIntervalSecs={s.releaseIntervalSecs}
+        initialUnlockBps={s.initialUnlockBps}
+        cliffAmountBps={s.cliffAmountBps}
+      />
+    </div>
   )
 }

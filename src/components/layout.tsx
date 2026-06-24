@@ -7,7 +7,6 @@ import { ErrorBoundary } from "@/components/error-boundary"
 
 const NAV: { to: string; label: string; aliases?: string[] }[] = [
   { to: "/dashboard", label: "Distributions" },
-  { to: "/create", label: "Create" },
   { to: "/claims", label: "Claims" },
   { to: "/wrap", label: "Wrap / Unwrap", aliases: ["/unwrap"] },
   { to: "/audit", label: "Audit" },

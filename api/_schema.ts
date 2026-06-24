@@ -59,6 +59,7 @@ export const disclosures = pgTable("disclosures", {
   distributionId: uuid("distribution_id").references(() => distributions.id, { onDelete: "cascade" }),
   manager: text("manager").notNull(), // vesting manager address
   vestingId: text("vesting_id").notNull(), // bytes32 hex
+  handle: text("handle"), // euint128 ciphertext granted to the party — lets the auditor decrypt directly (null for legacy rows)
   party: text("party").notNull(), // lowercased auditor address (reverse-lookup key)
   disclosureType: integer("disclosure_type").notNull(), // DisclosureType enum value
   recipient: text("recipient"), // lowercased recipient address (display only)

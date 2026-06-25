@@ -1,7 +1,8 @@
 import { useState, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import { isAddress, parseUnits, zeroAddress, type Address, type Hex } from "viem"
 import { toast } from "sonner"
-import { SquareCheck, Split as SplitIcon, ArrowRightLeft, Eye } from "lucide-react"
+import { Settings, SquareCheck, Split as SplitIcon, ArrowRightLeft, Eye } from "lucide-react"
 import { useZamaSDK } from "@zama-fhe/react-sdk"
 import {
   usePartialClaim,
@@ -19,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Kicker, SectionHead } from "@/components/editorial"
 import { CopyButton } from "@/components/copy-button"
 import { shortAddr, fmtTime } from "@/lib/format"
@@ -49,6 +50,7 @@ export function VestingActionsDialog({
   distributionId,
   self,
   theme,
+  index,
 }: {
   manager: Address
   vestingId: Hex
@@ -57,6 +59,7 @@ export function VestingActionsDialog({
   distributionId?: string
   self?: Address
   theme?: DistributionTheme
+  index?: number
 }) {
   const sdk = useZamaSDK()
   const partial = usePartialClaim({ address: manager, encryptor: () => sdk.relayer })
@@ -68,6 +71,7 @@ export function VestingActionsDialog({
   const pendingQ = usePendingVestingTransfer({ address: manager, vestingId })
   const confirm = useConfirmTx()
 
+  const [open, setOpen] = useState(false)
   const [pcAmount, setPcAmount] = useState("")
   const [splitNum, setSplitNum] = useState("1")
   const [splitDen, setSplitDen] = useState("2")
@@ -175,16 +179,31 @@ export function VestingActionsDialog({
     : undefined
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost">
-          Manage
-        </Button>
-      </DialogTrigger>
-      <DialogContent className={cn("max-h-[85svh] overflow-y-auto", theme?.mode === "dark" && "dark")} style={brandStyle}>
-        <DialogHeader>
-          <DialogTitle>Manage this vesting</DialogTitle>
-          <DialogDescription>
+    <>
+      {/* Portal the floating trigger to <body> so position:fixed pins it to the
+       *  viewport — the claim page has transformed ancestors (reveal animations)
+       *  that would otherwise capture it as the containing block. */}
+      {createPortal(
+        <div className={cn(theme?.mode === "dark" && "dark")} style={brandStyle}>
+          <Button
+            variant="outline"
+            size="icon"
+            title="Manage this vesting"
+            aria-label="Manage this vesting"
+            className="fixed right-5 z-40 size-11 rounded-full shadow-lg shadow-foreground/10"
+            style={{ bottom: `calc(1.25rem + ${(index ? index - 1 : 0) * 3.75}rem)` }}
+            onClick={() => setOpen(true)}
+          >
+            <Settings />
+          </Button>
+        </div>,
+        document.body,
+      )}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent className={cn(theme?.mode === "dark" && "dark")} style={brandStyle}>
+        <SheetHeader>
+          <SheetTitle>Manage this vesting</SheetTitle>
+          <SheetDescription>
             Advanced actions for{" "}
             <span className="inline-flex items-center gap-0.5 align-middle">
               <span title={vestingId} className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[0.6875rem] text-foreground">
@@ -193,8 +212,9 @@ export function VestingActionsDialog({
               <CopyButton value={vestingId} title="Copy vesting id" />
             </span>
             . Amounts stay encrypted.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
+        <div className="px-6 pb-10">
 
         {/* Partial claim */}
         <section className="space-y-2 border-t border-border pt-4">
@@ -288,8 +308,10 @@ export function VestingActionsDialog({
 
         {/* Self-service disclosure */}
         <DiscloseSection manager={manager} vestingId={vestingId} distributionId={distributionId} self={self} />
-      </DialogContent>
-    </Dialog>
+        </div>
+      </SheetContent>
+      </Sheet>
+    </>
   )
 }
 

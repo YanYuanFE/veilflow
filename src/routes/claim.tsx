@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button"
 import { Redaction } from "@/components/ui/redaction"
 import { StatusBadge } from "@/components/status-badge"
 import { VestingActionsDialog, AcceptIncomingTransfer } from "@/components/vesting-actions"
+import { ChainGate } from "@/components/chain-gate"
 import { VestingTimeline } from "@/components/vesting-timeline"
 import { Badge } from "@/components/ui/badge"
 import { useRepresentativeSchedule } from "@/lib/vesting-schedule"
@@ -426,18 +427,28 @@ function AirdropClaimPanel({
           This allocation was authorized for a different wallet — connect the address that was allocated tokens to claim.
         </Notice>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {!revealedNum && (
-          <Button variant="outline" onClick={onReveal} disabled={revealing}>
-            <Eye />
-            {revealing ? "Lifting the veil…" : "Decrypt my amount"}
-          </Button>
-        )}
-        <Button onClick={onClaim} disabled={confirming || isClaimed || sigInvalid}>
-          {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : isClaimed ? "Claimed ✓" : "Claim tokens"}
-        </Button>
-      </div>
+      <ChainGate>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {!revealedNum ? (
+            <Button variant="outline" onClick={onReveal} disabled={revealing}>
+              <Eye />
+              {revealing ? "Lifting the veil…" : "Decrypt my amount"}
+            </Button>
+          ) : (
+            !isClaimed &&
+            revealed != null &&
+            revealed > 0n && (
+              <Button onClick={onClaim} disabled={confirming || sigInvalid}>
+                {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : "Claim tokens"}
+              </Button>
+            )
+          )}
+        </div>
+      </ChainGate>
       {isClaimed && !confirming && <ClaimedNote />}
+      {revealedNum && revealed === 0n && !isClaimed && (
+        <p className="text-sm text-muted-foreground">Nothing to claim for this wallet.</p>
+      )}
     </div>
   )
 }
@@ -502,7 +513,7 @@ function VestingClaimPanel({
           />
         ))}
       </div>
-      <AcceptIncomingTransfer manager={manager} />
+      {theme?.showAcceptTransfer !== false && <AcceptIncomingTransfer manager={manager} />}
     </div>
   )
 }
@@ -595,16 +606,24 @@ function VestingClaimItem({
         value={revealed}
         symbol={symbol}
       />
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {!revealedNum && (
-          <Button variant="outline" onClick={onReveal} disabled={revealing}>
-            <Eye />
-            {revealing ? "Lifting the veil…" : "Decrypt claimable"}
-          </Button>
-        )}
-        <Button onClick={onClaim} disabled={confirming || !fee || claim.isSuccess || revealedZero}>
-          {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : claim.isSuccess ? "Claimed ✓" : "Claim vested"}
-        </Button>
+      <ChainGate>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {!revealedNum ? (
+            <Button variant="outline" onClick={onReveal} disabled={revealing}>
+              <Eye />
+              {revealing ? "Lifting the veil…" : "Decrypt claimable"}
+            </Button>
+          ) : (
+            !revealedZero &&
+            !claim.isSuccess && (
+              <Button onClick={onClaim} disabled={confirming || !fee}>
+                {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : "Claim vested"}
+              </Button>
+            )
+          )}
+        </div>
+      </ChainGate>
+      {theme?.showManage !== false && (
         <VestingActionsDialog
           manager={manager}
           vestingId={vestingId}
@@ -613,8 +632,9 @@ function VestingClaimItem({
           distributionId={distributionId}
           self={self}
           theme={theme}
+          index={index}
         />
-      </div>
+      )}
       {claim.isSuccess && !confirming ? (
         <ClaimedNote />
       ) : (

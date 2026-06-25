@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, Database, Eye, EyeOff, LockKeyhole, MonitorSmartphone, Send, ServerCog, Split, TrendingUp } from "lucide-react"
 import { Logomark } from "@/components/logomark"
+import { HeroSeal } from "@/components/hero-seal"
 import "./variant-landing.css"
 
 const NAV_LINKS = [
@@ -9,12 +10,6 @@ const NAV_LINKS = [
   { to: "/claims", label: "Claims" },
   { to: "/wrap", label: "Wrap / Unwrap" },
   { to: "/audit", label: "Auditor" },
-]
-
-const BADGES = [
-  { name: "Airdrop Participant", data: "ENCRYPTED: ****.84" },
-  { name: "Vesting Lead", data: "LOCKED: 0x4f...21" },
-  { name: "Compliance Node", data: "VERIFIED: ERC-7984" },
 ]
 
 const LEAKS = [
@@ -69,7 +64,7 @@ const INSTRUMENTS = [
     id: "disperse",
     index: "03",
     title: "Disperse",
-    blurb: "One encrypted batch, sent directly. Lands in the recipient's confidential balance instantly — no claim step.",
+    blurb: "One encrypted batch, sent directly. Lands in the recipient's confidential balance instantly. No claim step.",
     issuer: "One-shot batch send",
     recipient: "Receives into confidential balance",
     icon: Split,
@@ -111,13 +106,13 @@ export function VariantLanding() {
             <span className="vl-dot-gold" /> LIVE ON SEPOLIA
           </div>
           <h1>
-            Airdrops, vesting, disperse —
+            Airdrops, vesting, disperse.
             <br />
-            <span className="vl-hero-accent">with every amount encrypted.</span>
+            <span className="vl-hero-accent">Every amount encrypted.</span>
           </h1>
           <p className="vl-hero-sub">
             One console for any shape of confidential token distribution. Issuers connect a wallet, pick an instrument,
-            and distribute ERC-7984 tokens — while amounts stay sealed on-chain.
+            and distribute ERC-7984 tokens while amounts stay sealed on-chain.
           </p>
           <div className="vl-trust">
             <span className="vl-trust-icon" aria-hidden>
@@ -137,33 +132,14 @@ export function VariantLanding() {
             </Link>
           </div>
 
-          <div className="vl-floating-badges">
-            {BADGES.map((b) => (
-              <div className="vl-badge" key={b.name}>
-                <span className="vl-badge-avatar" aria-hidden>
-                  {b.name.charAt(0)}
-                </span>
-                <div className="vl-badge-info">
-                  <span className="vl-badge-name">{b.name}</span>
-                  <span className="vl-badge-data">{b.data}</span>
-                </div>
-                <div className="vl-badge-status" />
-              </div>
-            ))}
-          </div>
-
-          <div className="vl-scroll-indicator">
-            SCROLL
-            <div className="vl-scroll-line" />
-          </div>
+          <HeroSeal />
         </section>
 
         <section id="instruments" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">01 / INSTRUMENTS</div>
             <h2>Three ways to distribute, all confidential.</h2>
             <p className="vl-section-lede">
-              Same encrypted foundation, three distribution shapes — pick the one that fits the moment of the tokens.
+              Same encrypted foundation, three distribution shapes. Pick the one that fits the moment.
             </p>
           </div>
           <div className="vl-instruments">
@@ -192,7 +168,6 @@ export function VariantLanding() {
 
         <section id="infrastructure" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">02 / WHY CONFIDENTIAL</div>
             <h2>Public chains leak the number first.</h2>
             <p className="vl-section-lede">
               VeilFlow treats amount privacy as the default treasury posture, not an afterthought patched onto a public ledger.
@@ -218,7 +193,6 @@ export function VariantLanding() {
 
         <section id="trust-boundary" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">03 / TRUST BOUNDARY</div>
             <h2>Three layers, one privacy line.</h2>
             <p className="vl-section-lede">
               The app can coordinate distribution logistics without becoming a place where sensitive amounts live.
@@ -249,15 +223,12 @@ export function VariantLanding() {
 
         <section id="console-preview" className="vl-section">
           <div className="vl-section-header">
-            <div className="vl-metadata-tag">04 / INTERFACE</div>
             <h2>The distribution console.</h2>
           </div>
           <div className="vl-console">
             <div className="vl-console-header">
-              <div className="vl-dot" style={{ background: "#ff5f56" }} />
-              <div className="vl-dot" style={{ background: "#ffbd2e" }} />
-              <div className="vl-dot" style={{ background: "#27c93f" }} />
-              <span className="vl-console-file">distribution_manifest_v2.json</span>
+              <LockKeyhole size={13} strokeWidth={2} aria-hidden />
+              <span className="vl-console-file">Encrypted distribution · sample data</span>
             </div>
             <div className="vl-console-body">
               <div className="vl-row vl-row-head">

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogTrigger,
@@ -29,6 +30,8 @@ export function BrandingDialog({ d }: { d: Distribution }) {
   const [logoUrl, setLogoUrl] = useState(t0.logoUrl ?? "")
   const [title, setTitle] = useState(t0.title ?? "")
   const [description, setDescription] = useState(t0.description ?? "")
+  const [showManage, setShowManage] = useState(t0.showManage ?? true)
+  const [showAccept, setShowAccept] = useState(t0.showAcceptTransfer ?? true)
   const [saving, setSaving] = useState(false)
 
   const save = async () => {
@@ -41,6 +44,8 @@ export function BrandingDialog({ d }: { d: Distribution }) {
           logoUrl: logoUrl.trim() || undefined,
           title: title.trim() || undefined,
           description: description.trim() || undefined,
+          showManage,
+          showAcceptTransfer: showAccept,
         },
       })
       queryClient.invalidateQueries({ queryKey: ["distribution", d.id] })
@@ -123,6 +128,24 @@ export function BrandingDialog({ d }: { d: Distribution }) {
             className="min-h-20 w-full rounded-[4px] border border-input bg-transparent p-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20"
           />
         </div>
+
+        {d.type === "vesting" && (
+          <div className="space-y-2.5">
+            <Kicker className="tracking-[0.12em]">Recipient actions</Kicker>
+            <label htmlFor="brand-show-manage" className="flex items-start gap-2.5 text-sm">
+              <Checkbox id="brand-show-manage" checked={showManage} onCheckedChange={(v) => setShowManage(v === true)} className="mt-0.5" />
+              <span>
+                Manage gear <span className="text-muted-foreground">— partial claim, split, transfer, disclose</span>
+              </span>
+            </label>
+            <label htmlFor="brand-show-accept" className="flex items-start gap-2.5 text-sm">
+              <Checkbox id="brand-show-accept" checked={showAccept} onCheckedChange={(v) => setShowAccept(v === true)} className="mt-0.5" />
+              <span>
+                Accept an incoming transfer <span className="text-muted-foreground">— box for recipients to accept a vesting sent to them</span>
+              </span>
+            </label>
+          </div>
+        )}
 
         {/* Live preview of the claim page chrome */}
         <div>

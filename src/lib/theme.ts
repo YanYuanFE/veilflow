@@ -5,6 +5,9 @@ export interface DistributionTheme {
   logoUrl?: string
   title?: string
   description?: string
+  /** Recipient claim-page actions — default on. Set false to hide. */
+  showManage?: boolean
+  showAcceptTransfer?: boolean
 }
 
 /** Safely read the typed theme out of the raw jsonb. */
@@ -16,6 +19,8 @@ export function parseTheme(raw: Record<string, unknown> | null | undefined): Dis
   if (typeof raw.logoUrl === "string") t.logoUrl = raw.logoUrl
   if (typeof raw.title === "string") t.title = raw.title
   if (typeof raw.description === "string") t.description = raw.description
+  if (typeof raw.showManage === "boolean") t.showManage = raw.showManage
+  if (typeof raw.showAcceptTransfer === "boolean") t.showAcceptTransfer = raw.showAcceptTransfer
   return t
 }
 

@@ -129,16 +129,16 @@ export function BrandingDialog({ d }: { d: Distribution }) {
           <Kicker className="tracking-[0.12em]">Preview</Kicker>
           <div
             className={cn("mt-2 overflow-hidden rounded-md border border-border", mode === "dark" && "dark")}
-            style={{ "--seal": accent, "--seal-foreground": readableInk(accent) } as CSSProperties}
+            style={{ "--primary": accent, "--primary-foreground": readableInk(accent) } as CSSProperties}
           >
-            <div className="h-[2px] w-full bg-seal" />
+            <div className="h-[2px] w-full bg-primary" />
             <div className="flex items-center justify-between gap-3 bg-background px-4 py-3">
               {logoUrl ? (
                 <img src={logoUrl} alt="" className="h-6 max-w-[140px] object-contain" />
               ) : (
                 <span className="font-display text-lg text-foreground">{d.name}</span>
               )}
-              <span className="rounded-sm bg-seal px-2 py-1 text-[0.6875rem] font-semibold text-seal-foreground">Decrypt</span>
+              <span className="rounded-sm bg-primary px-2 py-1 text-[0.6875rem] font-semibold text-primary-foreground">Decrypt</span>
             </div>
             <div className="bg-background px-4 pb-4">
               {(title || description) && (

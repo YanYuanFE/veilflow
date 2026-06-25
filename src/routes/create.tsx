@@ -257,7 +257,7 @@ export function Create() {
                 <span
                   className={cn(
                     "size-2 rounded-full transition-colors",
-                    type === t.id ? "bg-seal" : "ring-1 ring-border ring-inset",
+                    type === t.id ? "bg-primary" : "ring-1 ring-border ring-inset",
                   )}
                   aria-hidden
                 />
@@ -615,7 +615,7 @@ function ReviewRow({
     <div className="grid gap-1 border-b border-border pb-3 last:border-b-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
         <Kicker className="tracking-[0.12em]">{label}</Kicker>
-        <span className={cn("size-1.5 rounded-full", ready ? "bg-seal" : "bg-muted-foreground")} aria-hidden />
+        <span className={cn("size-1.5 rounded-full", ready ? "bg-primary" : "bg-muted-foreground")} aria-hidden />
       </div>
       <div className={cn("text-sm leading-relaxed text-foreground", mono && "font-mono text-xs break-all")}>
         {value}

@@ -1,7 +1,7 @@
 // Per-distribution branding for the public claim page. Stored in distributions.theme (jsonb).
 export interface DistributionTheme {
   mode?: "light" | "dark"
-  accent?: string // any CSS color (a hex from the picker) — drives the brand accent (--seal)
+  accent?: string // any CSS color (a hex from the picker) — drives the brand accent (--primary)
   logoUrl?: string
   title?: string
   description?: string

@@ -7,7 +7,7 @@
   --vl-border: var(--border);
   --vl-surface: var(--card);
   --vl-glass: color-mix(in oklch, var(--muted) 60%, transparent);
-  --vl-gold: var(--seal);
+  --vl-gold: var(--primary);
   --vl-font-main: var(--font-sans);
   --vl-font-display: var(--font-display);
   --vl-font-mono: var(--font-mono);
@@ -248,7 +248,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--seal-soft);
+  background: var(--primary-soft);
   color: var(--vl-fg);
   font-family: var(--vl-font-mono);
   font-size: 0.8rem;

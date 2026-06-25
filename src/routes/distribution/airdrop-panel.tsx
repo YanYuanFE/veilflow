@@ -341,7 +341,7 @@ function IssuedRow({ airdrop, r }: { airdrop: Address; r: RecipientArtifact }) {
     caller: r.recipient as Address,
   }).data
   const status = claimed
-    ? { label: "Claimed", cls: "text-seal" }
+    ? { label: "Claimed", cls: "text-primary" }
     : valid === false
       ? { label: "Invalid", cls: "text-destructive" }
       : { label: "Pending", cls: "text-muted-foreground" }

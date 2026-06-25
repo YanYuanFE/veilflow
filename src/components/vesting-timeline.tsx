@@ -7,12 +7,12 @@ const fmtMonth = (ts: number) => new Date(ts * 1000).toLocaleDateString("en-US",
 const fmtFullDate = (ts: number) =>
   new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 
-const chartConfig = { pct: { label: "Unlocked", color: "var(--seal)" } } satisfies ChartConfig
+const chartConfig = { pct: { label: "Unlocked", color: "var(--primary)" } } satisfies ChartConfig
 
 /** Public unlock-shape chart for a vesting schedule, built on Recharts (shadcn chart).
  *  The schedule — start, cliff, end, initial unlock, cliff jump — is plaintext on-chain,
  *  so the curve is safe to draw; the amount stays confidential, so the y-axis is % of the
- *  recipient's allocation, never an absolute figure. Accent uses --seal (brandable). */
+ *  recipient's allocation, never an absolute figure. Accent uses --primary (brandable). */
 export function VestingTimeline({
   start,
   end,
@@ -76,8 +76,8 @@ export function VestingTimeline({
         <AreaChart data={data} margin={{ top: 18, right: 14, bottom: 2, left: 0 }}>
           <defs>
             <linearGradient id="vt-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--seal)" stopOpacity={0.32} />
-              <stop offset="100%" stopColor="var(--seal)" stopOpacity={0.03} />
+              <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.32} />
+              <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.03} />
             </linearGradient>
           </defs>
           <YAxis
@@ -122,7 +122,7 @@ export function VestingTimeline({
           {showNow && (
             <ReferenceLine
               x={now}
-              stroke="var(--seal)"
+              stroke="var(--primary)"
               strokeWidth={1.5}
               strokeDasharray="2 3"
               label={{ value: "now", position: "top", fontSize: 11, fontWeight: 600, fill: "var(--foreground)" }}
@@ -137,7 +137,7 @@ export function VestingTimeline({
             fill="url(#vt-fill)"
             isAnimationActive={false}
             dot={false}
-            activeDot={{ r: 3, fill: "var(--seal)", stroke: "var(--background)", strokeWidth: 1 }}
+            activeDot={{ r: 3, fill: "var(--primary)", stroke: "var(--background)", strokeWidth: 1 }}
           />
         </AreaChart>
       </ChartContainer>

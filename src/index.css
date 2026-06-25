@@ -18,9 +18,7 @@
 
     --ease-veil: cubic-bezier(0.22, 1, 0.36, 1);
 
-    --color-seal: var(--seal);
-    --color-seal-foreground: var(--seal-foreground);
-    --color-seal-soft: var(--seal-soft);
+    --color-primary-soft: var(--primary-soft);
 
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -75,8 +73,8 @@
     --popover: oklch(0.998 0.0025 95);
     --popover-foreground: oklch(0.235 0.014 72);
 
-    --primary: oklch(0.235 0.014 72);        /* ink — black buttons */
-    --primary-foreground: oklch(0.985 0.006 95);
+    --primary: oklch(0.862 0.158 95);        /* Zama gold — the primary action color */
+    --primary-foreground: oklch(0.255 0.02 78);
     --secondary: oklch(0.949 0.009 92);
     --secondary-foreground: oklch(0.285 0.016 74);
     --muted: oklch(0.949 0.009 92);
@@ -84,10 +82,8 @@
     --accent: oklch(0.945 0.011 92);         /* neutral hover surface (NOT the brand gold) */
     --accent-foreground: oklch(0.285 0.016 74);
 
-    /* The seal — Zama gold. Used like a highlighter / wax seal, sparingly. */
-    --seal: oklch(0.862 0.158 95);
-    --seal-foreground: oklch(0.255 0.02 78);
-    --seal-soft: oklch(0.945 0.072 96);
+    /* Soft pale-gold accent surface (Notice backgrounds, etc.). */
+    --primary-soft: oklch(0.945 0.072 96);
 
     --destructive: oklch(0.505 0.158 26);    /* deep oxblood, not fire-engine red */
 
@@ -119,17 +115,15 @@
     --card-foreground: oklch(0.95 0.008 92);
     --popover: oklch(0.235 0.013 80);
     --popover-foreground: oklch(0.95 0.008 92);
-    --primary: oklch(0.95 0.008 92);
-    --primary-foreground: oklch(0.235 0.014 72);
+    --primary: oklch(0.84 0.16 95);
+    --primary-foreground: oklch(0.22 0.02 78);
     --secondary: oklch(0.3 0.012 80);
     --secondary-foreground: oklch(0.95 0.008 92);
     --muted: oklch(0.3 0.012 80);
     --muted-foreground: oklch(0.72 0.012 84);
     --accent: oklch(0.31 0.013 80);
     --accent-foreground: oklch(0.95 0.008 92);
-    --seal: oklch(0.84 0.16 95);
-    --seal-foreground: oklch(0.22 0.02 78);
-    --seal-soft: oklch(0.36 0.06 92);
+    --primary-soft: oklch(0.36 0.06 92);
     --destructive: oklch(0.62 0.17 26);
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 18%);
@@ -152,8 +146,8 @@
     }
     /* Highlighter selection — the seal as a marking pen */
     ::selection {
-        background: var(--seal);
-        color: var(--seal-foreground);
+        background: var(--primary);
+        color: var(--primary-foreground);
     }
     /* Tighten the high-contrast display serif at large sizes */
     .font-display {
@@ -203,7 +197,7 @@
 
 /* Highlighter mark — Zama-gold marker swipe behind solid ink text */
 .mark-seal {
-    background-image: linear-gradient(to top, transparent 8%, var(--seal) 8%, var(--seal) 64%, transparent 64%);
+    background-image: linear-gradient(to top, transparent 8%, var(--primary) 8%, var(--primary) 64%, transparent 64%);
     background-repeat: no-repeat;
     background-position: left center;
     background-size: 100% 100%;
@@ -224,7 +218,7 @@
 
 /* Soft gold atmosphere behind hero focal points */
 .veil-glow {
-    background: radial-gradient(closest-side, color-mix(in oklch, var(--seal) 55%, transparent), transparent 72%);
+    background: radial-gradient(closest-side, color-mix(in oklch, var(--primary) 55%, transparent), transparent 72%);
     filter: blur(44px);
 }
 

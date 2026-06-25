@@ -69,7 +69,7 @@ export function GoLiveDialog({
             return (
               <li key={c.label} className="flex items-start gap-2.5">
                 {c.ok ? (
-                  <Check className="mt-0.5 size-4 shrink-0 text-seal" aria-hidden />
+                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
                 ) : (
                   <X className={cn("mt-0.5 size-4 shrink-0", failed ? "text-destructive" : "text-muted-foreground")} aria-hidden />
                 )}

@@ -48,7 +48,7 @@ export function Docs() {
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="-ml-px block border-l border-transparent py-0.5 pl-3 text-sm text-muted-foreground transition-colors hover:border-seal hover:text-foreground"
+                  className="-ml-px block border-l border-transparent py-0.5 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
                 >
                   {s.label}
                 </a>
@@ -273,7 +273,7 @@ function Tier({ layer, holds, guarantee, seal }: { layer: string; holds: string;
   return (
     <div className="grid gap-1 border-t border-border py-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-6">
       <div className="flex items-center gap-2">
-        {seal && <span className="size-1.5 rounded-full bg-seal" aria-hidden />}
+        {seal && <span className="size-1.5 rounded-full bg-primary" aria-hidden />}
         <span className="font-display text-lg text-foreground">{layer}</span>
       </div>
       <div className="max-w-[60ch] space-y-1 text-[0.9375rem] leading-relaxed">

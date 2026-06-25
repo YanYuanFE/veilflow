@@ -157,7 +157,7 @@ export function DisperseCard({ d }: { d: Distribution }) {
         <CardContent className="space-y-4">
           <Notice>
             <span className="inline-flex items-center gap-2">
-              <span className="size-1.5 rounded-full bg-seal" aria-hidden />
+              <span className="size-1.5 rounded-full bg-primary" aria-hidden />
               Dispersed — recipients received tokens into their confidential balance.
             </span>
             {d.deployTxHash && (

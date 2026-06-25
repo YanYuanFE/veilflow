@@ -19,7 +19,7 @@ export function Layout() {
     <div className="console-shell flex min-h-svh flex-col bg-background">
       {/* Letterhead + nav — pinned, lifts over content on scroll */}
       <div className="sticky top-0 z-40">
-        <div className="h-[2px] w-full bg-seal" />
+        <div className="h-[2px] w-full bg-primary" />
         <header className="border-b border-border bg-background/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <NavLink to="/" className="group flex items-center gap-2.5">
@@ -45,7 +45,7 @@ export function Layout() {
                     cn(
                       "relative shrink-0 py-1 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
                       (isActive || (n.aliases?.includes(pathname) ?? false)) &&
-                        "text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-seal after:content-['']",
+                        "text-foreground after:absolute after:inset-x-0 after:-bottom-px after:h-[2px] after:bg-primary after:content-['']",
                     )
                   }
                 >

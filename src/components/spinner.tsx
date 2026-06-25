@@ -14,7 +14,7 @@ export function Spinner({ size = "md", className }: { size?: keyof typeof SIZES;
     <span
       role="status"
       aria-label="Loading"
-      className={cn("inline-block shrink-0 animate-spin rounded-full border-border border-t-seal", SIZES[size], className)}
+      className={cn("inline-block shrink-0 animate-spin rounded-full border-border border-t-primary", SIZES[size], className)}
     />
   )
 }

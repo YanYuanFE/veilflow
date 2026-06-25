@@ -108,7 +108,7 @@ export function Claim() {
       <div className="space-y-10">
         <header className="claim-reveal space-y-4 text-center">
           <span className="inline-flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-seal" aria-hidden />
+            <span className="size-1.5 rounded-full bg-primary" aria-hidden />
             <Kicker>Confidential claim · {d.type}</Kicker>
           </span>
           <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">
@@ -173,19 +173,19 @@ export function Claim() {
 /** Standalone, branded shell for the customer-facing claim page (no app chrome). */
 function ClaimFrame({ theme, brandName, children }: { theme?: DistributionTheme; brandName?: string; children: ReactNode }) {
   const accent = theme?.accent
-  // Map the distribution's accent onto both our seal token and RainbowKit's accent
+  // Map the distribution's accent onto both --primary and RainbowKit's accent
   // vars, so the Connect Wallet button matches the configured theme color.
   const style = accent
     ? ({
-        "--seal": accent,
-        "--seal-foreground": readableInk(accent),
+        "--primary": accent,
+        "--primary-foreground": readableInk(accent),
         "--rk-colors-accentColor": accent,
         "--rk-colors-accentColorForeground": readableInk(accent),
       } as CSSProperties)
     : undefined
   return (
     <div className={cn("claim-page flex min-h-svh flex-col bg-background text-foreground", theme?.mode === "dark" && "dark")} style={style}>
-      <div className="h-[2px] w-full bg-seal" />
+      <div className="h-[2px] w-full bg-primary" />
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3.5">
           <BrandMark theme={theme} brandName={brandName} />
@@ -656,7 +656,7 @@ function AllocationRow({
         <div className="flex min-w-0 flex-col items-start gap-2">
           <span className="inline-flex items-center gap-1.5">
             {revealed ? (
-              <Unlock className="size-3 text-seal" aria-hidden />
+              <Unlock className="size-3 text-primary" aria-hidden />
             ) : (
               <Lock className="size-3 text-muted-foreground" aria-hidden />
             )}
@@ -676,7 +676,7 @@ function AllocationRow({
             <span className="font-mono text-lg leading-none font-medium text-foreground sm:text-xl">{symbol}</span>
           )}
           {revealed ? (
-            <span className="inline-flex items-center gap-1 text-[0.625rem] font-semibold tracking-[0.1em] text-seal uppercase">
+            <span className="inline-flex items-center gap-1 text-[0.625rem] font-semibold tracking-[0.1em] text-primary uppercase">
               <ShieldCheck className="size-3" aria-hidden />
               Visible to you
             </span>

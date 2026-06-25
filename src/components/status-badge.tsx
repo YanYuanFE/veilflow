@@ -7,10 +7,10 @@ type Variant = "secondary" | "outline" | "destructive"
 // variant = chip tone, dot = at-a-glance status colour (contrasts its chip).
 const STATUS: Record<DistributionStatus, { variant: Variant; dot: string }> = {
   draft: { variant: "outline", dot: "bg-muted-foreground" },
-  deploying: { variant: "secondary", dot: "bg-seal animate-pulse" },
+  deploying: { variant: "secondary", dot: "bg-primary animate-pulse" },
   deployed: { variant: "secondary", dot: "bg-muted-foreground" },
   funded: { variant: "secondary", dot: "bg-muted-foreground" },
-  live: { variant: "secondary", dot: "bg-seal" },
+  live: { variant: "secondary", dot: "bg-primary" },
   completed: { variant: "outline", dot: "bg-foreground" },
   revoked: { variant: "destructive", dot: "bg-background" },
 }

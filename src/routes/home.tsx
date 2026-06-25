@@ -107,7 +107,7 @@ export function Home() {
           <div className="max-w-2xl">
             <Reveal>
               <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5">
-                <span className="size-1.5 rounded-full bg-seal" aria-hidden />
+                <span className="size-1.5 rounded-full bg-primary" aria-hidden />
                 <Kicker className="tracking-[0.16em]">Confidential distribution · TokenOps × Zama</Kicker>
               </span>
             </Reveal>

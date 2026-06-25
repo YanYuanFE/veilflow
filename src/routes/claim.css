@@ -1,6 +1,6 @@
 /* Claim page — "sealed confidential instrument" polish.
    All rules scoped under .claim-page; everything derives from the live theme
-   tokens (--seal accent, --foreground, --background) so per-distribution
+   tokens (--primary accent, --foreground, --background) so per-distribution
    skinning and light/dark keep working. */
 
 .claim-page {
@@ -28,7 +28,7 @@
   height: 400px;
   transform: translateX(-50%);
   z-index: -1;
-  background: radial-gradient(ellipse at center, color-mix(in oklch, var(--seal) 28%, transparent), transparent 70%);
+  background: radial-gradient(ellipse at center, color-mix(in oklch, var(--primary) 28%, transparent), transparent 70%);
   filter: blur(66px);
   opacity: 0.55;
   pointer-events: none;

@@ -16,7 +16,9 @@ import {
 import { useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useAccount } from "wagmi"
-import { type Address } from "viem"
+import { type Address, type Hex } from "viem"
+import { useHasRole } from "@tokenops/sdk/fhe-vesting/react"
+import { useAirdropHasRole } from "@tokenops/sdk/fhe-airdrop/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -36,6 +38,10 @@ import { VestingRolesCard, VestingTreasuryCard } from "./vesting-admin"
 import { DisperseCard } from "./disperse-panel"
 import { BrandingDialog } from "./branding-dialog"
 
+// OpenZeppelin AccessControl: DEFAULT_ADMIN_ROLE is the zero bytes32. The DB
+// creator and any wallet granted this role on the deployed contract can manage.
+const DEFAULT_ADMIN_ROLE = ("0x" + "0".repeat(64)) as Hex
+
 export function DistributionDetail() {
   const { id } = useParams<{ id: string }>()
   const { address } = useAccount()
@@ -51,7 +57,30 @@ export function DistributionDetail() {
   if (!q.data) return null
 
   const d = q.data
-  const isOwner = !!address && address.toLowerCase() === d.creator
+  const isCreator = !!address && address.toLowerCase() === d.creator
+
+  // The DB creator always manages, and is the only path before deploy or for
+  // disperse (no contract to read). Once deployed, on-chain DEFAULT_ADMIN_ROLE
+  // holders manage too — dispatch to a per-type gate so the matching SDK hook
+  // reads the role straight from the contract (derived, never lifted into state).
+  if (isCreator || !address || !d.contractAddress) return <DistributionShell d={d} isOwner={isCreator} />
+  if (d.type === "vesting") return <VestingAdminGate d={d} account={address} />
+  if (d.type === "airdrop") return <AirdropAdminGate d={d} account={address} />
+  return <DistributionShell d={d} isOwner={false} />
+}
+
+// Each gate reads DEFAULT_ADMIN_ROLE membership from its own contract type and
+// renders the same shell — so a delegated admin gets the full management surface.
+function VestingAdminGate({ d, account }: { d: Distribution; account: Address }) {
+  const q = useHasRole({ address: d.contractAddress as Address, role: DEFAULT_ADMIN_ROLE, account })
+  return <DistributionShell d={d} isOwner={q.data === true} />
+}
+function AirdropAdminGate({ d, account }: { d: Distribution; account: Address }) {
+  const q = useAirdropHasRole({ address: d.contractAddress as Address, role: DEFAULT_ADMIN_ROLE, account })
+  return <DistributionShell d={d} isOwner={q.data === true} />
+}
+
+function DistributionShell({ d, isOwner }: { d: Distribution; isOwner: boolean }) {
   const lc = lifecycle(d)
 
   const heading = (
@@ -86,7 +115,7 @@ export function DistributionDetail() {
         <OverviewCard d={d} />
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Connect as the creator ({shortAddr(d.creator)}) to manage this distribution.
+            Connect as the creator ({shortAddr(d.creator)}) or an admin wallet to manage this distribution.
           </CardContent>
         </Card>
       </div>
@@ -111,11 +140,11 @@ function NextActionCard({ d, nextLabel }: { d: Distribution; nextLabel: string |
   const Icon = action.icon
 
   return (
-    <Card className="border-foreground/20 bg-[color-mix(in_oklch,var(--card)_82%,var(--seal)_18%)]">
+    <Card className="border-foreground/20 bg-[color-mix(in_oklch,var(--card)_82%,var(--primary)_18%)]">
       <CardContent className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.42fr)] lg:items-center">
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-seal text-seal-foreground">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-primary text-primary-foreground">
               <Icon className="size-4" aria-hidden />
             </span>
             <Kicker className="tracking-[0.12em]">Next action</Kicker>
@@ -132,7 +161,7 @@ function NextActionCard({ d, nextLabel }: { d: Distribution; nextLabel: string |
               <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
                 <span className="text-muted-foreground">{check.label}</span>
                 <span className="inline-flex items-center gap-1.5 text-foreground">
-                  <span className={check.done ? "size-1.5 rounded-full bg-seal" : "size-1.5 rounded-full bg-muted-foreground"} aria-hidden />
+                  <span className={check.done ? "size-1.5 rounded-full bg-primary" : "size-1.5 rounded-full bg-muted-foreground"} aria-hidden />
                   {check.value}
                 </span>
               </div>

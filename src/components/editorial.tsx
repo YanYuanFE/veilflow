@@ -95,7 +95,7 @@ export function Notice({
 }) {
   const tones = {
     default: "border-border bg-muted/30 text-foreground",
-    seal: "border-seal/40 bg-seal-soft text-foreground",
+    seal: "border-primary/40 bg-primary-soft text-foreground",
     muted: "border-border bg-muted/40 text-muted-foreground",
     void: "border-destructive/30 bg-destructive/5 text-foreground",
   } as const
@@ -105,9 +105,9 @@ export function Notice({
 type SealTone = "live" | "done" | "progress" | "neutral" | "void"
 
 const DOT: Record<SealTone, string> = {
-  live: "bg-seal",
+  live: "bg-primary",
   done: "bg-foreground",
-  progress: "bg-seal animate-pulse",
+  progress: "bg-primary animate-pulse",
   neutral: "bg-muted-foreground",
   void: "bg-destructive",
 }

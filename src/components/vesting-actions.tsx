@@ -169,9 +169,9 @@ export function VestingActionsDialog({
 
   // This dialog renders in a portal outside the claim page's themed wrapper, so
   // re-apply the distribution's configured accent (and mode) here — otherwise it
-  // falls back to the default seal instead of the brand color.
+  // falls back to the default --primary instead of the brand color.
   const brandStyle = theme?.accent
-    ? ({ "--seal": theme.accent, "--seal-foreground": readableInk(theme.accent) } as CSSProperties)
+    ? ({ "--primary": theme.accent, "--primary-foreground": readableInk(theme.accent) } as CSSProperties)
     : undefined
 
   return (

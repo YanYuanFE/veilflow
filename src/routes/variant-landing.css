@@ -119,16 +119,41 @@
   z-index: 1;
 }
 
-/* Hero */
+/* Hero — a rounded panel filled by the animated gold mesh-gradient (HeroGradient
+   / WebGL2). The static gradient here is the pre-paint + reduced-motion fallback;
+   the copy overlays it on the left. */
 .vl-hero {
-  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 92px 14px 0;
+  border-radius: 28px;
+  min-height: calc(100vh - 116px);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  /* top padding clears the fixed nav so the headline isn't crowding the header */
-  padding: 7rem 10vw 4rem;
+  padding: clamp(2.5rem, 6vw, 5.5rem) clamp(1.75rem, 8vw, 7rem);
+  background:
+    radial-gradient(120% 120% at 12% 16%, color-mix(in oklch, var(--primary) 36%, transparent), transparent 56%),
+    radial-gradient(90% 95% at 26% 82%, color-mix(in oklch, var(--primary) 16%, transparent), transparent 60%),
+    radial-gradient(100% 100% at 86% 28%, #eceef2, transparent 58%),
+    var(--vl-bg);
+  box-shadow: 0 30px 80px -60px color-mix(in oklch, var(--primary) 50%, transparent);
+}
+.vl-hero-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.vl-hero-content {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .vl-metadata-tag {
@@ -200,14 +225,14 @@
 }
 
 /* Hero specimen — a recipient's amount that auto-seals (plaintext -> sealed) on
-   a calm loop: the "every amount encrypted" promise, demonstrated. Hover holds
-   it revealed. Lives natively in the ivory system — hairline card, ink figure,
-   gold seal — not a foreign dark panel. */
+   a calm loop, floating on the right of the gradient panel as a confidential
+   receipt. Hover holds it revealed. */
 .vl-seal {
   position: absolute;
   right: 5vw;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 2;
   width: min(420px, 38vw);
 }
 .vl-seal-stack {
@@ -231,10 +256,9 @@
   transform: translate(6px, 7px) rotate(0.6deg);
   opacity: 0.75;
 }
-
 .vl-seal-card {
   position: relative;
-  z-index: 1; /* sits above the ::before/::after stack edges, never under them */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -244,7 +268,6 @@
   background: var(--vl-surface);
   box-shadow: 0 36px 70px -50px color-mix(in oklch, var(--foreground) 42%, transparent);
 }
-
 .vl-seal-top {
   display: flex;
   align-items: flex-start;
@@ -270,7 +293,6 @@
   width: 13px;
   height: 13px;
 }
-
 .vl-seal-field {
   display: flex;
   flex-direction: column;
@@ -289,7 +311,6 @@
   letter-spacing: 0.02em;
   color: var(--vl-fg);
 }
-
 .vl-seal-amount {
   position: relative;
   overflow: hidden;
@@ -342,7 +363,6 @@
   transform: translateX(-130%);
   background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 60%, transparent), transparent);
 }
-
 .vl-seal-unit {
   margin-top: -10px;
   font-family: var(--vl-font-mono);
@@ -351,7 +371,6 @@
   text-transform: uppercase;
   color: var(--vl-muted);
 }
-
 .vl-seal-foot {
   display: flex;
   align-items: center;
@@ -367,7 +386,6 @@
 .vl-seal-foot .vl-seal-dot {
   color: var(--vl-gold);
 }
-
 /* the gold wax-seal stamp — a slow tick dial behind a still padlock */
 .vl-seal-stamp {
   flex: 0 0 auto;
@@ -441,21 +459,8 @@
   }
 }
 
-/* All hero motion lives here so reduced-motion gets a calm, static specimen. */
+/* Hero copy entrance — reduced-motion skips it (and the animated gradient). */
 @media (prefers-reduced-motion: no-preference) {
-  .vl-seal-plain,
-  .vl-seal-ciphered {
-    transition:
-      opacity 0.5s ease,
-      filter 0.55s ease;
-  }
-  .vl-stamp-ticks {
-    animation: vl-spin 30s linear infinite;
-  }
-  .vl-seal-card.is-sealed .vl-seal-sweep {
-    animation: vl-seal-sweep 0.64s ease-out;
-  }
-
   .vl-hero .vl-metadata-tag {
     animation: vl-rise 0.7s 0.04s both var(--vl-ease);
   }
@@ -472,10 +477,22 @@
     animation: vl-rise 0.7s 0.46s both var(--vl-ease);
   }
   .vl-seal {
-    animation: vl-fade 0.9s 0.28s both;
+    animation: vl-fade 0.9s 0.34s both;
   }
   .vl-seal-card {
-    animation: vl-rise 0.9s 0.4s both var(--vl-ease);
+    animation: vl-rise 0.9s 0.46s both var(--vl-ease);
+  }
+  .vl-seal-plain,
+  .vl-seal-ciphered {
+    transition:
+      opacity 0.5s ease,
+      filter 0.55s ease;
+  }
+  .vl-stamp-ticks {
+    animation: vl-spin 30s linear infinite;
+  }
+  .vl-seal-card.is-sealed .vl-seal-sweep {
+    animation: vl-seal-sweep 0.64s ease-out;
   }
 }
 
@@ -847,11 +864,10 @@
   }
 
   .vl-hero {
-    padding: 0 24px;
-    height: auto;
-    min-height: 100svh;
-    padding-top: 120px;
-    padding-bottom: 80px;
+    margin: 78px 12px 0;
+    border-radius: 22px;
+    min-height: calc(100svh - 94px);
+    padding: 104px 28px 80px;
     justify-content: flex-start;
   }
 
@@ -860,7 +876,7 @@
     position: static;
     transform: none;
     width: min(440px, 92%);
-    margin: 56px auto 0;
+    margin: 44px auto 0;
   }
 
   .vl-section {
@@ -900,7 +916,9 @@
   }
 
   .vl-hero {
-    padding: 110px 20px 64px;
+    margin: 70px 8px 0;
+    border-radius: 18px;
+    padding: 100px 22px 56px;
     min-height: auto;
   }
   .vl-hero-sub {

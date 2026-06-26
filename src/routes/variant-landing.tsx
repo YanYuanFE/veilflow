@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, Database, Eye, EyeOff, LockKeyhole, MonitorSmartphone, Send, ServerCog, Split, TrendingUp } from "lucide-react"
 import { Logomark } from "@/components/logomark"
+import { HeroGradient } from "@/components/hero-gradient"
 import { HeroSeal } from "@/components/hero-seal"
 import "./variant-landing.css"
 
@@ -102,36 +103,38 @@ export function VariantLanding() {
 
       <main className="vl-main">
         <section className="vl-hero">
-          <div className="vl-metadata-tag">
-            <span className="vl-dot-gold" /> LIVE ON SEPOLIA
+          <HeroGradient />
+          <div className="vl-hero-content">
+            <div className="vl-metadata-tag">
+              <span className="vl-dot-gold" /> LIVE ON SEPOLIA
+            </div>
+            <h1>
+              Airdrops, vesting, disperse.
+              <br />
+              <span className="vl-hero-accent">Every amount encrypted.</span>
+            </h1>
+            <p className="vl-hero-sub">
+              One console for any shape of confidential token distribution. Issuers connect a wallet, pick an instrument,
+              and distribute ERC-7984 tokens while amounts stay sealed on-chain.
+            </p>
+            <div className="vl-trust">
+              <span className="vl-trust-icon" aria-hidden>
+                <LockKeyhole size={16} strokeWidth={2} />
+              </span>
+              <span className="vl-trust-text">
+                <strong>Plaintext never leaves your browser.</strong> The backend only ever sees ciphertext artifacts.
+              </span>
+            </div>
+            <div className="vl-cta-group">
+              <Link to="/create" className="vl-btn-primary">
+                Create a distribution
+                <ArrowRight size={18} strokeWidth={2.25} aria-hidden />
+              </Link>
+              <Link to="/docs" className="vl-btn-secondary">
+                Read the docs
+              </Link>
+            </div>
           </div>
-          <h1>
-            Airdrops, vesting, disperse.
-            <br />
-            <span className="vl-hero-accent">Every amount encrypted.</span>
-          </h1>
-          <p className="vl-hero-sub">
-            One console for any shape of confidential token distribution. Issuers connect a wallet, pick an instrument,
-            and distribute ERC-7984 tokens while amounts stay sealed on-chain.
-          </p>
-          <div className="vl-trust">
-            <span className="vl-trust-icon" aria-hidden>
-              <LockKeyhole size={16} strokeWidth={2} />
-            </span>
-            <span className="vl-trust-text">
-              <strong>Plaintext never leaves your browser.</strong> The backend only ever sees ciphertext artifacts.
-            </span>
-          </div>
-          <div className="vl-cta-group">
-            <Link to="/create" className="vl-btn-primary">
-              Create a distribution
-              <ArrowRight size={18} strokeWidth={2.25} aria-hidden />
-            </Link>
-            <Link to="/docs" className="vl-btn-secondary">
-              Read the docs
-            </Link>
-          </div>
-
           <HeroSeal />
         </section>
 

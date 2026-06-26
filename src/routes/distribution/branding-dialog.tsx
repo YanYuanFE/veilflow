@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ColorPicker } from "@/components/ui/color-picker"
 import {
   Dialog,
   DialogTrigger,
@@ -97,17 +98,8 @@ export function BrandingDialog({ d }: { d: Distribution }) {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="brand-accent">Accent</Label>
-            <div className="flex items-center gap-2">
-              <input
-                id="brand-accent"
-                type="color"
-                value={accent}
-                onChange={(e) => setAccent(e.target.value)}
-                className="h-8 w-10 shrink-0 cursor-pointer rounded-[4px] border border-input bg-transparent p-0.5"
-              />
-              <Input value={accent} onChange={(e) => setAccent(e.target.value)} className="font-mono" />
-            </div>
+            <Label>Accent</Label>
+            <ColorPicker color={accent} onChange={setAccent} />
           </div>
         </div>
         <div className="space-y-2">

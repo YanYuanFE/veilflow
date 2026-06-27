@@ -22,10 +22,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function list(req: VercelRequest, res: VercelResponse) {
   const { party } = req.query
   if (typeof party !== "string") return bad(res, "party query param required")
+  const want = normalizeAddress(party, "party")
+  if (requireSession(req) !== want) throw new HttpError(403, "You can only list disclosures for your signed-in wallet")
   const rows = await db
     .select()
     .from(disclosures)
-    .where(eq(disclosures.party, normalizeAddress(party, "party")))
+    .where(eq(disclosures.party, want))
     .orderBy(desc(disclosures.createdAt))
   return res.status(200).json(rows)
 }

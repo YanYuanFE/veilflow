@@ -20,6 +20,6 @@ export const verifySiwe = (message: string, signature: string) =>
     (b) => b.address,
   )
 
-export const fetchSession = () => request<{ address: string | null }>("session").then((b) => b.address)
+export const fetchSession = () => request<{ address: string | null }>("me").then((b) => b.address)
 
 export const logout = () => request<{ ok: true }>("logout", { method: "POST" })

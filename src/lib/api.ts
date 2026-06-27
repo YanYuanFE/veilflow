@@ -50,8 +50,8 @@ export interface DisclosureRecord {
   createdAt: string
 }
 
-// On-demand auth. Console reads/writes hit session-guarded endpoints; public/on-chain pages
-// (claim, audit, wrap, unwrap) don't. When a guarded request 401s, sign in via SIWE (handler
+// On-demand auth. Private console reads/writes hit session-guarded endpoints; public/on-chain
+// pages (claim, wrap, unwrap) don't. When a guarded request 401s, sign in via SIWE (handler
 // registered by the app at startup) and retry once. Concurrent 401s share a single sign-in.
 let signIn: (() => Promise<void>) | null = null
 let signingIn: Promise<void> | null = null

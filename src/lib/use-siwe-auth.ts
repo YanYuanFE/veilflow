@@ -4,11 +4,10 @@ import { useQueryClient } from "@tanstack/react-query"
 import { createSiweMessage } from "viem/siwe"
 import { fetchNonce, fetchSession, verifySiwe } from "@/lib/auth"
 
-// On-demand SIWE. Connecting a wallet does NOT sign in — the public/on-chain pages
-// (claim, audit, wrap, unwrap) never need a session. ensureSession() is invoked by the
-// API layer only when a session-guarded request 401s, and it signs in only if the
-// connected wallet isn't already signed in. The session cookie lasts 7 days, so for the
-// issuer it's a one-time prompt.
+// On-demand SIWE. Connecting a wallet does NOT sign in. Public/on-chain pages
+// (claim, wrap, unwrap) can stay sessionless; private console surfaces (dashboard,
+// auditor view, writes) call ensureSession before opening or when a guarded request
+// 401s. The session cookie lasts 7 days, so it is usually a one-time prompt.
 export function useEnsureSession() {
   const { address } = useAccount()
   const chainId = useChainId()
@@ -32,7 +31,8 @@ export function useEnsureSession() {
     })
     const signature = await signMessageAsync({ message })
     await verifySiwe(message, signature)
-    // Refresh the issuer's own back-office reads now that the session exists.
+    // Refresh private reads now that the session exists.
     queryClient.invalidateQueries({ queryKey: ["distributions"] })
+    queryClient.invalidateQueries({ queryKey: ["disclosures"] })
   }, [address, chainId, signMessageAsync, queryClient])
 }

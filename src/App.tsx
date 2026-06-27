@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from "react-router-dom"
 import { Toaster } from "sonner"
 import { Layout } from "@/components/layout"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { RequireSiweSession } from "@/components/auth-gate"
 import { Kicker } from "@/components/editorial"
 import { Home } from "@/routes/home"
 import { Treasury } from "@/routes/treasury"
@@ -24,11 +25,31 @@ function App() {
         <Route element={<Layout />}>
           {/* Previous editorial landing, kept reachable (not deleted) */}
           <Route path="overview" element={<Home />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route
+            path="dashboard"
+            element={
+              <RequireSiweSession
+                title="Sign in to see your distributions"
+                description="Dashboard data is private to the signed wallet. Connecting alone is not enough; sign a SIWE message to continue."
+              >
+                <Dashboard />
+              </RequireSiweSession>
+            }
+          />
           <Route path="create" element={<Create />} />
           <Route path="d/:id" element={<DistributionDetail />} />
           <Route path="claims" element={<Claims />} />
-          <Route path="audit" element={<Audit />} />
+          <Route
+            path="audit"
+            element={
+              <RequireSiweSession
+                title="Sign in to open auditor view"
+                description="Disclosures are private to the auditor wallet. Sign a SIWE message before viewing disclosed figures."
+              >
+                <Audit />
+              </RequireSiweSession>
+            }
+          />
           <Route path="docs" element={<Docs />} />
           <Route path="wrap" element={<Treasury />} />
           <Route path="unwrap" element={<Treasury />} />

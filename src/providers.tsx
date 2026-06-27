@@ -1,14 +1,15 @@
 import type { ReactNode } from "react"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { WagmiProvider, usePublicClient, useWalletClient, useAccount } from "wagmi"
 import { sepolia } from "wagmi/chains"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query"
 import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit"
 import { ZamaProvider, RelayerWeb, SepoliaConfig, indexedDBStorage } from "@zama-fhe/react-sdk"
 import { ViemSigner } from "@zama-fhe/sdk/viem"
 import { wagmiConfig } from "@/lib/wagmi"
 import { SEPOLIA_RPC_URL } from "@/lib/config"
 import { useEnsureSession } from "@/lib/use-siwe-auth"
+import { logout } from "@/lib/auth"
 import { setUnauthorizedHandler } from "@/lib/api"
 import "@rainbow-me/rainbowkit/styles.css"
 
@@ -56,9 +57,37 @@ function ZamaBoundary({ children }: { children: ReactNode }) {
 // client calls this to sign in and retry. Must sit inside the Wagmi + Query providers.
 function AuthBridge() {
   const ensureSession = useEnsureSession()
+  const { address, isConnected } = useAccount()
+  const qc = useQueryClient()
+  const lastAddress = useRef<string | undefined>(undefined)
+  const wasConnected = useRef(false)
+
   useEffect(() => {
     setUnauthorizedHandler(ensureSession)
   }, [ensureSession])
+
+  useEffect(() => {
+    const previous = lastAddress.current
+    const current = address?.toLowerCase()
+    const disconnected = wasConnected.current && !isConnected
+    const switched = !!previous && !!current && previous !== current
+
+    if (disconnected || switched) {
+      void logout()
+        .catch(() => {
+          // Best-effort cleanup: the next guarded request/gate will still reject a stale session.
+        })
+        .finally(() => {
+          qc.removeQueries({ queryKey: ["siwe-session"] })
+          qc.removeQueries({ queryKey: ["distributions"] })
+          qc.removeQueries({ queryKey: ["disclosures"] })
+        })
+    }
+
+    wasConnected.current = isConnected
+    lastAddress.current = current
+  }, [address, isConnected, qc])
+
   return null
 }
 

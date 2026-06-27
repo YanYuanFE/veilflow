@@ -14,14 +14,14 @@ import {
 
 // GET  /api/auth/nonce    -> { nonce }   (also sets the nonce cookie)
 // POST /api/auth/verify   -> { address } (verifies SIWE message+signature, sets session)
-// GET  /api/auth/session  -> { address | null }
+// GET  /api/auth/me       -> { address | null }
 // POST /api/auth/logout   -> { ok }
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const action = req.query.action
   try {
     if (action === "nonce" && req.method === "GET") return nonce(res)
     if (action === "verify" && req.method === "POST") return await verify(req, res)
-    if (action === "session" && req.method === "GET") return session(req, res)
+    if (action === "me" && req.method === "GET") return me(req, res)
     if (action === "logout" && req.method === "POST") return logout(res)
     return bad(res, "Not found", 404)
   } catch (e) {
@@ -62,7 +62,7 @@ async function verify(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({ address: address.toLowerCase() })
 }
 
-function session(req: VercelRequest, res: VercelResponse) {
+function me(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({ address: getSession(req)?.address ?? null })
 }
 

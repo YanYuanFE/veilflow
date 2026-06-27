@@ -5,7 +5,7 @@ import { formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
-import { Lock, Unlock, ShieldCheck, Eye } from "lucide-react"
+import { Lock, Unlock, ShieldCheck, Eye, SearchX, ExternalLink, Pause } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
   useGetClaimAmount,
@@ -32,11 +32,13 @@ import { VestingActionsDialog, AcceptIncomingTransfer } from "@/components/vesti
 import { ChainGate } from "@/components/chain-gate"
 import { VestingTimeline } from "@/components/vesting-timeline"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useRepresentativeSchedule } from "@/lib/vesting-schedule"
 import { Kicker, Folio, Notice } from "@/components/editorial"
 import { CopyButton } from "@/components/copy-button"
 import { Loading } from "@/components/spinner"
 import { getDistributionBySlug, listRecipients, type Distribution } from "@/lib/api"
+import { EXPLORER } from "@/routes/distribution/shared"
 import { useTokenMeta } from "@/lib/tokens"
 import { useConfirmTx } from "@/lib/use-confirm-tx"
 import { useNowSeconds } from "@/lib/use-now"
@@ -312,12 +314,10 @@ function AirdropClaimGate({
   const paused = useAirdropIsPaused({ address: d.contractAddress as Address }).data === true
   if (paused)
     return (
-      <div className="space-y-2">
-        <Kicker>Claims paused</Kicker>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          The issuer has paused claims for now. Your allocation is safe — check back later.
-        </p>
-      </div>
+      <PausedState
+        title="Claims are paused"
+        hint="The issuer has paused claims for now. Your allocation is safe — check back later."
+      />
     )
   if (!isConnected) return <ConnectPrompt />
   return <AirdropClaimPanel d={d} decimals={decimals} symbol={symbol} closesIn={closesIn} />
@@ -351,6 +351,8 @@ function AirdropClaimPanel({
   const confirm = useConfirmTx()
   const [confirming, setConfirming] = useState(false)
   const [viewHandle, setViewHandle] = useState<Hex>()
+  const [result, setResult] = useState<{ amount: bigint; hash: Hex } | null>(null)
+  const [showResult, setShowResult] = useState(false)
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: airdrop }] : [] },
     { enabled: !!viewHandle },
@@ -366,7 +368,7 @@ function AirdropClaimPanel({
     user: address,
     encryptedAmountHandle: artifact?.handle as Hex | undefined,
   })
-  const isClaimed = claim.isSuccess || claimedQ.data === true
+  const isClaimed = claimedQ.data === true
 
   // On-chain pre-check: the admin signature is bound to (caller, handle), so an
   // allocation signed for a different wallet is invalid for the connected one.
@@ -390,12 +392,14 @@ function AirdropClaimPanel({
   }
   const onClaim = async () => {
     if (!encryptedInput || !artifact?.signature) return
+    const amount = typeof revealed === "bigint" ? revealed : 0n // the figure they saw, now claimed
     setConfirming(true)
     try {
       const hash = await claim.mutateAsync({ encryptedInput, signature: artifact.signature as Hex })
       await confirm(hash)
       await claimedQ.refetch() // re-read on-chain claimed state once the tx is mined
-      toast.success("Claimed into your confidential balance")
+      setResult({ amount, hash })
+      setShowResult(true)
     } catch (e) {
       toast.error(err(e))
     } finally {
@@ -406,9 +410,11 @@ function AirdropClaimPanel({
   if (artifactQ.isLoading) return <Kicker>Checking your allocation…</Kicker>
   if (!artifact)
     return (
-      <Notice tone="muted">
-        No allocation found for <span className="font-mono text-foreground">{shortAddr(address)}</span> here.
-      </Notice>
+      <NotOnList
+        title="Not on the allocation list"
+        hint="This airdrop has no allocation for the connected wallet. If you were expecting one, switch to the wallet it was sent to."
+        address={address}
+      />
     )
 
   return (
@@ -429,7 +435,7 @@ function AirdropClaimPanel({
       )}
       <ChainGate>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {!revealedNum ? (
+          {result ? null : !revealedNum ? (
             <Button variant="outline" onClick={onReveal} disabled={revealing}>
               <Eye />
               {revealing ? "Lifting the veil…" : "Decrypt my amount"}
@@ -445,10 +451,64 @@ function AirdropClaimPanel({
           )}
         </div>
       </ChainGate>
-      {isClaimed && !confirming && <ClaimedNote />}
+      {(isClaimed || result) && <ClaimedNote />}
       {revealedNum && revealed === 0n && !isClaimed && (
         <p className="text-sm text-muted-foreground">Nothing to claim for this wallet.</p>
       )}
+      {result && (
+        <ClaimSuccessDialog
+          open={showResult}
+          onOpenChange={setShowResult}
+          amount={result.amount}
+          hash={result.hash}
+          decimals={decimals}
+          symbol={symbol}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Refined "this wallet isn't on the sealed list" state — shared by the airdrop
+ *  and vesting panels. Reads as a calm record lookup that came back empty, not an
+ *  error; keeps the looked-up address visible and inherits the distribution accent. */
+function NotOnList({ title, hint, address }: { title: string; hint: string; address?: Address }) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-4 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
+      <span className="grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+        <SearchX className="size-6" strokeWidth={1.75} aria-hidden />
+      </span>
+      <div className="space-y-1.5">
+        <p className="font-display text-xl leading-tight text-foreground">{title}</p>
+        <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">{hint}</p>
+      </div>
+      {address && (
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-xs text-muted-foreground">
+          <i className="size-1.5 rounded-full bg-muted-foreground" aria-hidden />
+          {shortAddr(address)}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Calm "temporarily on hold" state — shown when the issuer has paused the
+ *  distribution. Mirrors NotOnList; a pulsing gold dot reads it as a live status,
+ *  reassuring rather than an error. */
+function PausedState({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex flex-col items-center gap-4 py-4 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
+      <span className="grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+        <Pause className="size-6" strokeWidth={1.75} aria-hidden />
+      </span>
+      <div className="space-y-1.5">
+        <p className="font-display text-xl leading-tight text-foreground">{title}</p>
+        <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">{hint}</p>
+      </div>
+      <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-muted-foreground">
+        <i className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" aria-hidden />
+        Temporarily paused
+      </span>
     </div>
   )
 }
@@ -476,18 +536,18 @@ function VestingClaimPanel({
   if (vestingsQ.isLoading) return <Kicker>Checking your vesting…</Kicker>
   if (paused)
     return (
-      <div className="space-y-2">
-        <Kicker>Claims paused</Kicker>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          The issuer has paused this vesting for now. Your allocation is safe — check back later.
-        </p>
-      </div>
+      <PausedState
+        title="Claims are paused"
+        hint="The issuer has paused this vesting for now. Your allocation is safe — check back later."
+      />
     )
   if (ids.length === 0)
     return (
-      <Notice tone="muted">
-        No vesting found for <span className="font-mono text-foreground">{shortAddr(address)}</span> here.
-      </Notice>
+      <NotOnList
+        title="No vesting on this schedule"
+        hint="This vesting has no grant for the connected wallet. If you were expecting one, switch to the wallet it was granted to."
+        address={address}
+      />
     )
 
   return (
@@ -546,6 +606,8 @@ function VestingClaimItem({
   const revoked = (infoQ.data?.revokeTimestamp ?? 0) > 0
   const [confirming, setConfirming] = useState(false)
   const [viewHandle, setViewHandle] = useState<Hex>()
+  const [result, setResult] = useState<{ amount: bigint; hash: Hex } | null>(null)
+  const [showResult, setShowResult] = useState(false)
   const decrypt = useUserDecrypt(
     { handles: viewHandle ? [{ handle: viewHandle, contractAddress: manager }] : [] },
     { enabled: !!viewHandle },
@@ -569,6 +631,7 @@ function VestingClaimItem({
   }
   const onClaim = async () => {
     if (!fee) return
+    const amount = typeof revealed === "bigint" ? revealed : 0n // the figure they saw, now claimed
     setConfirming(true)
     try {
       const hash = await claim.mutateAsync(
@@ -578,7 +641,8 @@ function VestingClaimItem({
       )
       await confirm(hash)
       setViewHandle(undefined) // the prior reveal is now spent — re-seal so it can be re-read
-      toast.success("Claimed your vested tokens")
+      setResult({ amount, hash })
+      setShowResult(true)
     } catch (e) {
       toast.error(err(e))
     } finally {
@@ -608,14 +672,13 @@ function VestingClaimItem({
       />
       <ChainGate>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {!revealedNum ? (
+          {result ? null : !revealedNum ? (
             <Button variant="outline" onClick={onReveal} disabled={revealing}>
               <Eye />
               {revealing ? "Lifting the veil…" : "Decrypt claimable"}
             </Button>
           ) : (
-            !revealedZero &&
-            !claim.isSuccess && (
+            !revealedZero && (
               <Button onClick={onClaim} disabled={confirming || !fee}>
                 {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : "Claim vested"}
               </Button>
@@ -635,12 +698,22 @@ function VestingClaimItem({
           index={index}
         />
       )}
-      {claim.isSuccess && !confirming ? (
+      {result ? (
         <ClaimedNote />
       ) : (
         revealedZero && (
           <p className="text-sm text-muted-foreground">Nothing claimable right now — return as more unlocks.</p>
         )
+      )}
+      {result && (
+        <ClaimSuccessDialog
+          open={showResult}
+          onOpenChange={setShowResult}
+          amount={result.amount}
+          hash={result.hash}
+          decimals={decimals}
+          symbol={symbol}
+        />
       )}
     </div>
   )
@@ -711,6 +784,68 @@ function AllocationRow({
   )
 }
 
+/** One-time success modal after a claim — claimed amount + tx hash + explorer link. */
+function ClaimSuccessDialog({
+  open,
+  onOpenChange,
+  amount,
+  hash,
+  decimals,
+  symbol,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  amount: bigint
+  hash: Hex
+  decimals: number
+  symbol?: string
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <span className="mx-auto grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+            <ShieldCheck className="size-6" strokeWidth={1.75} aria-hidden />
+          </span>
+          <DialogTitle className="text-center font-display text-2xl">Tokens claimed</DialogTitle>
+          <DialogDescription className="text-center">
+            Your tokens are now in your confidential balance.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-md border border-border bg-card px-5 py-4 text-center">
+            <Kicker className="tracking-[0.14em]">Claimed amount</Kicker>
+            <p className="mt-1.5 font-mono text-3xl font-medium tabular-nums text-foreground">
+              {formatUnits(amount, decimals)} <span className="text-lg text-muted-foreground">{symbol}</span>
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border px-4 py-3">
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <Kicker className="tracking-[0.12em]">Tx</Kicker>
+              <Folio className="truncate">{shortAddr(hash)}</Folio>
+              <CopyButton value={hash} title="Copy transaction hash" />
+            </span>
+            <a
+              className="inline-flex shrink-0 items-center gap-1.5 font-mono text-xs text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+              href={`${EXPLORER}/tx/${hash}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Explorer <ExternalLink className="size-3.5" aria-hidden />
+            </a>
+          </div>
+          <Button asChild className="w-full">
+            <a href="/unwrap">
+              <Unlock />
+              Unwrap to ERC-20
+            </a>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function ClaimedNote() {
   return (
     <p className="text-sm text-muted-foreground">
@@ -726,7 +861,12 @@ function ClaimedNote() {
 // The public unlock curve at the bottom of the claim page — read from the representative vesting
 // on-chain (DB fallback while it loads) so it reflects the real on-chain terms.
 function PublicVestingTimeline({ manager, d }: { manager: Address; d: Distribution }) {
+  const { address } = useAccount()
+  const vestingsQ = useRecipientVestings({ address: manager, recipient: address })
   const { schedule: s } = useRepresentativeSchedule(manager, d)
+  // Personal chart ("% of your allocation"): only show when this wallet actually
+  // has a vesting here — hide for not-connected or "no vesting found" recipients.
+  if (!address || (vestingsQ.data?.length ?? 0) === 0) return null
   if (!(s.end > s.start)) return null
   return (
     <div className="border-t border-border px-6 py-6 sm:px-8">

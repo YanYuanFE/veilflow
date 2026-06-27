@@ -415,16 +415,21 @@ export function AirdropPauseRow({ d }: { d: Distribution }) {
   const pausedQ = useAirdropIsPaused({ address: airdrop })
   const setPaused = useSetPaused({ address: airdrop })
   const confirm = useConfirmTx()
+  const [confirming, setConfirming] = useState(false)
   const isPaused = pausedQ.data === true
+  const busy = setPaused.isPending || confirming
 
   const onPause = async () => {
     try {
       const hash = await setPaused.mutateAsync({ paused: !isPaused })
+      setConfirming(true)
       await confirm(hash)
       await pausedQ.refetch()
       toast.success(isPaused ? "Claims resumed" : "Claims paused")
     } catch (e) {
       toast.error(err(e))
+    } finally {
+      setConfirming(false)
     }
   }
 
@@ -438,10 +443,10 @@ export function AirdropPauseRow({ d }: { d: Distribution }) {
         variant={isPaused ? "default" : "destructive"}
         size="sm"
         onClick={onPause}
-        disabled={setPaused.isPending || pausedQ.isLoading}
+        disabled={busy || pausedQ.isLoading}
       >
-        {isPaused ? <Play /> : <Pause />}
-        {setPaused.isPending ? "…" : isPaused ? "Resume claims" : "Pause claims"}
+        {busy ? <RefreshCw className="animate-spin" /> : isPaused ? <Play /> : <Pause />}
+        {busy ? (isPaused ? "Resuming…" : "Pausing…") : isPaused ? "Resume claims" : "Pause claims"}
       </Button>
     </div>
   )

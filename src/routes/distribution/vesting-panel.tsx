@@ -764,8 +764,8 @@ export function VestingPauseRow({ d }: { d: Distribution }) {
         onClick={onTogglePause}
         disabled={pausing || pausedQ.isLoading}
       >
-        {isPaused ? <Play /> : <Pause />}
-        {pausing ? "…" : isPaused ? "Resume" : "Pause"}
+        {pausing ? <RefreshCw className="animate-spin" /> : isPaused ? <Play /> : <Pause />}
+        {pausing ? (isPaused ? "Resuming…" : "Pausing…") : isPaused ? "Resume" : "Pause"}
       </Button>
     </div>
   )

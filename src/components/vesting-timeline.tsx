@@ -133,6 +133,7 @@ export function VestingTimeline({
             dataKey="pct"
             type="stepAfter"
             stroke="var(--muted-foreground)"
+            strokeOpacity={0.5}
             strokeWidth={1.75}
             fill="url(#vt-fill)"
             isAnimationActive={false}

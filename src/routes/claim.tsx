@@ -5,7 +5,7 @@ import { formatUnits, type Address, type Hex } from "viem"
 import { useAccount } from "wagmi"
 import { toast } from "sonner"
 import { ConnectButton } from "@rainbow-me/rainbowkit"
-import { Lock, Unlock, ShieldCheck, Eye, SearchX, ExternalLink, Pause } from "lucide-react"
+import { Lock, Unlock, ShieldCheck, Eye, SearchX, ExternalLink, Pause, Check } from "lucide-react"
 import { useUserDecrypt } from "@zama-fhe/react-sdk"
 import {
   useGetClaimAmount,
@@ -118,7 +118,7 @@ export function Claim() {
             {theme.title ?? d.name}
           </h1>
           <p className="mx-auto max-w-[46ch] text-[1.0625rem] leading-relaxed text-muted-foreground">
-            {theme.description ?? "Only you can read your own figure. It stays sealed until you decrypt it with your wallet."}
+            {theme.description ?? "Only you can see your allocation — it stays sealed until you decrypt it with your wallet."}
           </p>
         </header>
 
@@ -132,6 +132,9 @@ export function Claim() {
               <HeaderDateRange d={d} />
               <StatusBadge status={d.status} />
             </div>
+            {d.type === "airdrop" && d.contractAddress && (
+              <AirdropClosesIn airdrop={d.contractAddress as Address} d={d} now={now} />
+            )}
             <div className="mt-7">
             {d.type === "disperse" ? (
               <div className="space-y-2">
@@ -223,7 +226,7 @@ function ConnectPrompt() {
       <div className="space-y-1.5">
         <Kicker>Secure access</Kicker>
         <p className="mx-auto max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
-          Connect the wallet that was allocated tokens to decrypt your figure.
+          Connect the wallet that was allocated tokens to decrypt your allocation.
         </p>
       </div>
       <div className="flex justify-center">
@@ -251,6 +254,22 @@ function AirdropHeaderRange({ airdrop, d }: { airdrop: Address; d: Distribution 
   const end = endQ.data ?? (typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null)
   if (!start && !end) return null
   return <span className="font-mono text-sm text-muted-foreground">{fmtRange(start, end)}</span>
+}
+
+// Live "closes in" countdown under the header date range — only while the window is open.
+// Reads the on-chain end (admin can extend); React Query dedupes with AirdropHeaderRange.
+function AirdropClosesIn({ airdrop, d, now }: { airdrop: Address; d: Distribution; now: number }) {
+  const startQ = useAirdropStartTime({ address: airdrop })
+  const endQ = useAirdropEndTime({ address: airdrop })
+  const start = startQ.data ?? (typeof d.config.startTimestamp === "number" ? d.config.startTimestamp : null)
+  const end = endQ.data ?? (typeof d.config.endTimestamp === "number" ? d.config.endTimestamp : null)
+  if (start != null && now < start) return null
+  if (end == null || now > end) return null
+  return (
+    <p className="mt-2">
+      <Kicker>Closes in {fmtCountdown(end - now)}</Kicker>
+    </p>
+  )
 }
 
 // Airdrop claim window, read on-chain. The admin can extend the window after deploy
@@ -291,9 +310,7 @@ function AirdropClaimSection({
         <p className="text-sm text-muted-foreground">{fmtTime(end)}</p>
       </div>
     )
-  return (
-    <AirdropClaimGate d={d} decimals={decimals} symbol={symbol} closesIn={end != null ? end - now : null} isConnected={isConnected} />
-  )
+  return <AirdropClaimGate d={d} decimals={decimals} symbol={symbol} isConnected={isConnected} />
 }
 
 /** Airdrop action area, gated by the contract's pause state (read even before
@@ -302,13 +319,11 @@ function AirdropClaimGate({
   d,
   decimals,
   symbol,
-  closesIn,
   isConnected,
 }: {
   d: Distribution
   decimals: number
   symbol?: string
-  closesIn: number | null
   isConnected: boolean
 }) {
   const paused = useAirdropIsPaused({ address: d.contractAddress as Address }).data === true
@@ -320,19 +335,17 @@ function AirdropClaimGate({
       />
     )
   if (!isConnected) return <ConnectPrompt />
-  return <AirdropClaimPanel d={d} decimals={decimals} symbol={symbol} closesIn={closesIn} />
+  return <AirdropClaimPanel d={d} decimals={decimals} symbol={symbol} />
 }
 
 function AirdropClaimPanel({
   d,
   decimals,
   symbol,
-  closesIn,
 }: {
   d: Distribution
   decimals: number
   symbol?: string
-  closesIn: number | null
 }) {
   const { address } = useAccount()
   const airdrop = d.contractAddress as Address
@@ -427,31 +440,35 @@ function AirdropClaimPanel({
         value={revealed}
         symbol={symbol}
       />
-      {closesIn != null && <Kicker>Window open · closes in {fmtCountdown(closesIn)}</Kicker>}
-      {sigInvalid && (
+      {/* Single-use signature: it reads invalid both for a wrong wallet AND once
+          consumed by a claim. Only the pre-claim case means "wrong wallet". */}
+      {sigInvalid && !isClaimed && !result && (
         <Notice tone="void">
           This allocation was authorized for a different wallet — connect the address that was allocated tokens to claim.
         </Notice>
       )}
-      <ChainGate>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          {result ? null : !revealedNum ? (
-            <Button variant="outline" onClick={onReveal} disabled={revealing}>
-              <Eye />
-              {revealing ? "Lifting the veil…" : "Decrypt my amount"}
-            </Button>
-          ) : (
-            !isClaimed &&
-            revealed != null &&
-            revealed > 0n && (
-              <Button onClick={onClaim} disabled={confirming || sigInvalid}>
-                {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : "Claim tokens"}
+      {/* Already claimed: skip the reveal/claim buttons entirely — getClaimAmount
+          reverts ("already redeemed") once the signature is consumed. */}
+      {result || isClaimed ? null : (
+        <ChainGate>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {!revealedNum ? (
+              <Button variant="outline" onClick={onReveal} disabled={revealing}>
+                <Eye />
+                {revealing ? "Revealing…" : "Reveal my allocation"}
               </Button>
-            )
-          )}
-        </div>
-      </ChainGate>
-      {(isClaimed || result) && <ClaimedNote />}
+            ) : (
+              revealed != null &&
+              revealed > 0n && (
+                <Button onClick={onClaim} disabled={confirming || sigInvalid}>
+                  {confirming ? (claim.isPending ? "Claiming…" : "Confirming…") : "Claim tokens"}
+                </Button>
+              )
+            )}
+          </div>
+        </ChainGate>
+      )}
+      {(isClaimed || result) && <ClaimedNote token={d.token as Address} />}
       {revealedNum && revealed === 0n && !isClaimed && (
         <p className="text-sm text-muted-foreground">Nothing to claim for this wallet.</p>
       )}
@@ -463,6 +480,8 @@ function AirdropClaimPanel({
           hash={result.hash}
           decimals={decimals}
           symbol={symbol}
+          token={d.token as Address}
+          theme={parseTheme(d.theme)}
         />
       )}
     </div>
@@ -498,7 +517,7 @@ function NotOnList({ title, hint, address }: { title: string; hint: string; addr
 function PausedState({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="flex flex-col items-center gap-4 py-4 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
-      <span className="grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+      <span className="grid size-14 place-items-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
         <Pause className="size-6" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="space-y-1.5">
@@ -506,7 +525,7 @@ function PausedState({ title, hint }: { title: string; hint: string }) {
         <p className="mx-auto max-w-[34ch] text-sm leading-relaxed text-muted-foreground">{hint}</p>
       </div>
       <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 font-mono text-[0.625rem] uppercase tracking-[0.16em] text-muted-foreground">
-        <i className="size-1.5 rounded-full bg-primary motion-safe:animate-pulse" aria-hidden />
+        <i className="size-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" aria-hidden />
         Temporarily paused
       </span>
     </div>
@@ -566,6 +585,7 @@ function VestingClaimPanel({
             fee={feeInfo.data}
             decimals={decimals}
             symbol={symbol}
+            token={d.token as Address}
             index={ids.length > 1 ? i + 1 : undefined}
             distributionId={d.id}
             self={address}
@@ -584,6 +604,7 @@ function VestingClaimItem({
   fee,
   decimals,
   symbol,
+  token,
   index,
   distributionId,
   self,
@@ -594,6 +615,7 @@ function VestingClaimItem({
   fee?: { feeType: FeeType; fee: bigint }
   decimals: number
   symbol?: string
+  token: Address
   index?: number
   distributionId?: string
   self?: Address
@@ -699,7 +721,7 @@ function VestingClaimItem({
         />
       )}
       {result ? (
-        <ClaimedNote />
+        <ClaimedNote token={token} />
       ) : (
         revealedZero && (
           <p className="text-sm text-muted-foreground">Nothing claimable right now — return as more unlocks.</p>
@@ -713,6 +735,8 @@ function VestingClaimItem({
           hash={result.hash}
           decimals={decimals}
           symbol={symbol}
+          token={token}
+          theme={theme}
         />
       )}
     </div>
@@ -792,6 +816,8 @@ function ClaimSuccessDialog({
   hash,
   decimals,
   symbol,
+  token,
+  theme,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -799,12 +825,20 @@ function ClaimSuccessDialog({
   hash: Hex
   decimals: number
   symbol?: string
+  token: Address
+  theme?: DistributionTheme
 }) {
+  // The dialog portals to <body>, outside ClaimFrame's themed subtree — so re-apply
+  // the distribution accent + dark mode here, or it falls back to the global gold.
+  const accent = theme?.accent
+  const style = accent
+    ? ({ "--primary": accent, "--primary-foreground": readableInk(accent) } as CSSProperties)
+    : undefined
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className={cn("sm:max-w-md", theme?.mode === "dark" && "dark")} style={style}>
         <DialogHeader>
-          <span className="mx-auto grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+          <span className="mx-auto grid size-14 place-items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="size-6" strokeWidth={1.75} aria-hidden />
           </span>
           <DialogTitle className="text-center font-display text-2xl">Tokens claimed</DialogTitle>
@@ -835,7 +869,7 @@ function ClaimSuccessDialog({
             </a>
           </div>
           <Button asChild className="w-full">
-            <a href="/unwrap">
+            <a href={`/unwrap?token=${token}`}>
               <Unlock />
               Unwrap to ERC-20
             </a>
@@ -846,15 +880,35 @@ function ClaimSuccessDialog({
   )
 }
 
-function ClaimedNote() {
+/** Persistent "this allocation is claimed" confirmation — an accent-tinted banner with
+ *  green success markers that pairs with the sealed allocation box above it (airdrop
+ *  already-claimed + after any fresh claim). Inherits the distribution accent + light/dark. */
+function ClaimedNote({ token }: { token: Address }) {
   return (
-    <p className="text-sm text-muted-foreground">
-      Claimed into your confidential balance. Decrypt it on the{" "}
-      <a className="underline decoration-border underline-offset-2 hover:decoration-foreground" href="/wrap">
-        token page
-      </a>
-      .
-    </p>
+    <div className="flex items-start gap-3.5 rounded-lg border border-primary/25 bg-primary/[0.06] px-4 py-3.5 text-left duration-500 animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
+      <span className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full border border-emerald-500/30 bg-card text-emerald-600 dark:text-emerald-400">
+        <ShieldCheck className="size-5" strokeWidth={2} aria-hidden />
+      </span>
+      <div className="min-w-0 space-y-1">
+        <p className="flex items-center gap-2 leading-snug">
+          <span className="font-medium text-foreground">Claimed to your confidential balance</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono text-[0.5625rem] font-semibold tracking-[0.14em] text-emerald-600 uppercase dark:text-emerald-400">
+            <Check className="size-2.5" strokeWidth={3} aria-hidden />
+            Done
+          </span>
+        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Your tokens stay encrypted on-chain — unwrap them to a public ERC-20 on the{" "}
+          <a
+            className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+            href={`/unwrap?token=${token}`}
+          >
+            token page
+          </a>
+          .
+        </p>
+      </div>
+    </div>
   )
 }
 

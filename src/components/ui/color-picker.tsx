@@ -144,7 +144,7 @@ export function ColorPicker({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-start text-left font-normal">
+        <Button variant="outline" className="h-8 w-full justify-start px-2.5 text-left font-normal">
           <div className="mr-2 h-4 w-4 rounded-full shadow-sm" style={{ backgroundColor: colorInput }} />
           <span className="grow font-mono">{trimColorString(colorInput)}</span>
           <ChevronDown className="h-4 w-4 opacity-50" />

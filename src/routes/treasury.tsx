@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
-import { useLocation } from "react-router-dom"
-import { isAddress, parseUnits, formatUnits, type Address, type Hex } from "viem"
-import { useAccount } from "wagmi"
+import { useLocation, useSearchParams } from "react-router-dom"
+import { isAddress, parseUnits, formatUnits, erc20Abi, type Address, type Hex } from "viem"
+import { useAccount, useReadContract } from "wagmi"
 import { toast } from "sonner"
 import {
   useShield,
@@ -24,6 +24,19 @@ import { Kicker, Notice } from "@/components/editorial"
 import { shortAddr } from "@/lib/format"
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address
+
+// Underlined "Max" affordance in the amount label row — fills the input with the full balance.
+function MaxButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="font-mono text-xs font-medium text-primary underline decoration-primary/30 underline-offset-2 transition-colors hover:decoration-primary"
+    >
+      Max
+    </button>
+  )
+}
 
 export function Treasury() {
   const { pathname } = useLocation()
@@ -57,8 +70,14 @@ export function Treasury() {
 }
 
 function WrapPanel() {
-  const { isConnected } = useAccount()
-  const [token, setToken] = useState("")
+  const { address, isConnected } = useAccount()
+  const [searchParams] = useSearchParams()
+  // Prefill the confidential token from a deep link (e.g. /wrap?token=0x… from the
+  // claim success banner). Read once on mount; the field stays editable afterwards.
+  const [token, setToken] = useState(() => {
+    const t = searchParams.get("token")
+    return t && isAddress(t) ? t : ""
+  })
   const [amount, setAmount] = useState("")
   const [reveal, setReveal] = useState(false)
 
@@ -84,6 +103,20 @@ function WrapPanel() {
   const balance = useConfidentialBalance({ tokenAddress }, { enabled: valid && isWrapper && isConnected && reveal })
   const shield = useShield({ tokenAddress })
   const revealedNum = reveal && balance.data != null && confidentialDecimals !== undefined
+
+  // Wrap deposits the underlying ERC-20, so "Max" is the public balance — plaintext,
+  // no reveal needed (unlike the confidential balance shown above).
+  const underlyingBalance = useReadContract({
+    address: underlyingToken,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!underlyingToken && !!address },
+  })
+  const maxWrap =
+    underlyingBalance.data != null && underlyingDecimals !== undefined
+      ? formatUnits(underlyingBalance.data, underlyingDecimals)
+      : undefined
 
   const onWrap = async () => {
     if (!valid || !amount || underlyingDecimals === undefined) return
@@ -153,7 +186,10 @@ function WrapPanel() {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="wrap-amount">Amount to wrap</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="wrap-amount">Amount to wrap</Label>
+            {maxWrap !== undefined && <MaxButton onClick={() => setAmount(maxWrap)} />}
+          </div>
           <Input id="wrap-amount" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 
@@ -172,7 +208,13 @@ function WrapPanel() {
 
 function UnwrapPanel() {
   const { isConnected } = useAccount()
-  const [token, setToken] = useState("")
+  const [searchParams] = useSearchParams()
+  // Prefill the confidential token from a deep link (e.g. /unwrap?token=0x… from the
+  // claim success modal). Read once on mount; the field stays editable afterwards.
+  const [token, setToken] = useState(() => {
+    const t = searchParams.get("token")
+    return t && isAddress(t) ? t : ""
+  })
   const [amount, setAmount] = useState("")
   const [reveal, setReveal] = useState(false)
 
@@ -294,7 +336,10 @@ function UnwrapPanel() {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="unwrap-amount">Amount to unwrap</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="unwrap-amount">Amount to unwrap</Label>
+            {revealedNum && <MaxButton onClick={() => setAmount(formatUnits(balance.data!, decimals!))} />}
+          </div>
           <Input id="unwrap-amount" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 

@@ -83,7 +83,7 @@ export function Audit() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="space-y-8">
       <header className="space-y-2">
         <Kicker>Compliance · Auditor view</Kicker>
         <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">Auditor view</h1>

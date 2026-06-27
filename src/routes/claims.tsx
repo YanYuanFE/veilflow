@@ -18,7 +18,7 @@ export function Claims() {
   const rows = q.data ?? []
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="space-y-10">
       <header className="space-y-2">
         <Kicker>Recipient</Kicker>
         <h1 className="font-display text-[clamp(2.5rem,5vw,3.5rem)] leading-tight text-foreground">Your claims</h1>

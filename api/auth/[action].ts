@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import type { Hex } from "viem"
 import { generateSiweNonce, parseSiweMessage, verifySiweMessage } from "viem/siwe"
-import { bad, HttpError } from "../_http"
+import { bad, HttpError } from "../_http.js"
 import {
   authClient,
   clearNonceCookie,
@@ -10,7 +10,7 @@ import {
   readNonce,
   setNonceCookie,
   setSessionCookie,
-} from "../_auth"
+} from "../_auth.js"
 
 // GET  /api/auth/nonce    -> { nonce }   (also sets the nonce cookie)
 // POST /api/auth/verify   -> { address } (verifies SIWE message+signature, sets session)

@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { and, desc, eq } from "drizzle-orm"
-import { db } from "../../_db"
-import { distributions, recipients } from "../../_schema"
-import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress } from "../../_http"
-import { requireSession } from "../../_auth"
+import { db } from "../../_db.js"
+import { distributions, recipients } from "../../_schema.js"
+import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress } from "../../_http.js"
+import { requireSession } from "../../_auth.js"
 
 const HEX_RE = /^0x[0-9a-fA-F]+$/
 

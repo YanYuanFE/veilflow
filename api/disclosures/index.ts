@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { desc, eq } from "drizzle-orm"
-import { db } from "../_db"
-import { disclosures, distributions } from "../_schema"
-import { bad, HttpError, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
-import { requireSession } from "../_auth"
+import { db } from "../_db.js"
+import { disclosures, distributions } from "../_schema.js"
+import { bad, HttpError, methodNotAllowed, normalizeAddress, requireAddress } from "../_http.js"
+import { requireSession } from "../_auth.js"
 
 const VID_RE = /^0x[0-9a-fA-F]{64}$/
 

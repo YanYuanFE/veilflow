@@ -2,7 +2,7 @@ import crypto from "node:crypto"
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { createPublicClient, http } from "viem"
 import { sepolia } from "viem/chains"
-import { HttpError } from "./_http"
+import { HttpError } from "./_http.js"
 
 // SIWE session layer. A successful sign-in mints a stateless HMAC-signed token
 // stored in an httpOnly cookie, so every serverless function can authenticate a

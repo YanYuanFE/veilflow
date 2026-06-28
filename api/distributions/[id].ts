@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { eq } from "drizzle-orm"
-import { db } from "../_db"
-import { distributions, distributionStatus, type NewDistribution } from "../_schema"
-import { bad, HttpError, methodNotAllowed, requireAddress } from "../_http"
-import { requireSession } from "../_auth"
-import { validateConfig } from "../_config"
+import { db } from "../_db.js"
+import { distributions, distributionStatus, type NewDistribution } from "../_schema.js"
+import { bad, HttpError, methodNotAllowed, requireAddress } from "../_http.js"
+import { requireSession } from "../_auth.js"
+import { validateConfig } from "../_config.js"
 
 const STATUSES = distributionStatus.enumValues
 const TXHASH_RE = /^0x[0-9a-fA-F]{64}$/

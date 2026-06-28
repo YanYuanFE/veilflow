@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node"
 import { desc, eq, inArray } from "drizzle-orm"
-import { db } from "../_db"
-import { distributions, distributionType, recipients } from "../_schema"
-import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress, requireAddress } from "../_http"
-import { requireSession } from "../_auth"
-import { validateConfig } from "../_config"
+import { db } from "../_db.js"
+import { distributions, distributionType, recipients } from "../_schema.js"
+import { bad, HttpError, isUniqueViolation, methodNotAllowed, normalizeAddress, requireAddress } from "../_http.js"
+import { requireSession } from "../_auth.js"
+import { validateConfig } from "../_config.js"
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/
 const TYPES = distributionType.enumValues

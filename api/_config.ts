@@ -1,4 +1,4 @@
-import { HttpError, requireAddress } from "./_http"
+import { HttpError, requireAddress } from "./_http.js"
 
 // Per-type validation of the public `config` blob at creation. Returns a CLEAN
 // object containing only the known fields for that type — unknown keys are

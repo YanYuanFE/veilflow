@@ -253,7 +253,7 @@ export function VariantLanding() {
               ))}
             </div>
           </div>
-          <p className="vl-console-note">Select a row to reveal a fixed key-holder sample.</p>
+          <p className="vl-console-note">Hover a row to reveal a fixed key-holder sample.</p>
         </section>
       </main>
 
@@ -268,23 +268,26 @@ export function VariantLanding() {
   )
 }
 
-/** A console row with an explicit, keyboard-accessible key-holder reveal. */
+/** A console row: hover (or keyboard focus) reveals the key-holder sample —
+ *  hovering is more discoverable than a click on the landing demo. */
 function ConsoleRow({ index, addr, sealed, amount }: ConsoleRowData) {
   const [revealed, setRevealed] = useState(false)
   return (
     <button
       type="button"
       className="vl-row"
-      onClick={() => setRevealed((v) => !v)}
-      aria-pressed={revealed}
-      aria-label={`${revealed ? "Hide" : "Reveal"} sample encrypted amount for ${addr}`}
+      onPointerEnter={() => setRevealed(true)}
+      onPointerLeave={() => setRevealed(false)}
+      onFocus={() => setRevealed(true)}
+      onBlur={() => setRevealed(false)}
+      aria-label={`Reveal sample encrypted amount for ${addr}`}
     >
       <div>{index}</div>
       <div>{addr}</div>
       <div className="vl-encrypted-val">{revealed ? amount : sealed}</div>
       <div className="vl-status-shielded">
         {revealed ? <Eye size={14} strokeWidth={2} aria-hidden /> : <LockKeyhole size={14} strokeWidth={2} aria-hidden />}
-        {revealed ? "KEY VIEW" : "SHIELDED"}
+        {revealed ? "DECRYPTED" : "SHIELDED"}
       </div>
     </button>
   )

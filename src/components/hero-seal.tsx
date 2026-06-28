@@ -60,7 +60,7 @@ export function HeroSeal() {
             <span className="vl-seal-status">
               <span className="vl-seal-statusdot" />
               {sealed ? <LockKeyhole strokeWidth={2} /> : <Eye strokeWidth={2} />}
-              {sealed ? "Shielded" : "Key view"}
+              {sealed ? "Shielded" : "Decrypted"}
             </span>
             <SealStamp />
           </header>

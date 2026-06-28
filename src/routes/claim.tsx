@@ -489,12 +489,13 @@ function AirdropClaimPanel({
 }
 
 /** Refined "this wallet isn't on the sealed list" state — shared by the airdrop
- *  and vesting panels. Reads as a calm record lookup that came back empty, not an
- *  error; keeps the looked-up address visible and inherits the distribution accent. */
+ *  and vesting panels. Amber (warning, not error): a no-result that's likely an
+ *  actionable wrong-wallet mismatch, so it needs more pull than a neutral gray but
+ *  not the false alarm of red. Keeps the looked-up address visible. */
 function NotOnList({ title, hint, address }: { title: string; hint: string; address?: Address }) {
   return (
     <div className="flex flex-col items-center gap-4 py-4 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2 motion-reduce:animate-none">
-      <span className="grid size-14 place-items-center rounded-full border border-primary/30 bg-primary-soft text-primary">
+      <span className="grid size-14 place-items-center rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
         <SearchX className="size-6" strokeWidth={1.75} aria-hidden />
       </span>
       <div className="space-y-1.5">

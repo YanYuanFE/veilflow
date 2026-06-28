@@ -161,7 +161,12 @@ function NextActionCard({ d, nextLabel }: { d: Distribution; nextLabel: string |
               <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
                 <span className="text-muted-foreground">{check.label}</span>
                 <span className="inline-flex items-center gap-1.5 text-foreground">
-                  <span className={check.done ? "size-1.5 rounded-full bg-primary" : "size-1.5 rounded-full bg-muted-foreground"} aria-hidden />
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      !check.done ? "bg-muted-foreground" : check.value === "Live" ? "bg-primary" : "bg-emerald-500"
+                    }`}
+                    aria-hidden
+                  />
                   {check.value}
                 </span>
               </div>
@@ -245,8 +250,10 @@ function nextAction(d: Distribution, nextLabel: string | null): {
   }
 
   const claimType = d.type === "airdrop" ? "claim pool" : "vesting manager"
+  // Sentence-case for standalone checklist labels; claimType stays lowercase for mid-sentence body copy.
+  const claimTypeLabel = claimType[0].toUpperCase() + claimType.slice(1)
   const deployLabel = d.type === "airdrop" ? "Deploy & fund" : "Deploy manager"
-  const recipientLabel = d.type === "airdrop" ? "claims issued" : "vestings created"
+  const recipientLabel = d.type === "airdrop" ? "Claims issued" : "Vestings created"
 
   if (!d.contractAddress) {
     return {
@@ -262,7 +269,7 @@ function nextAction(d: Distribution, nextLabel: string | null): {
       ctaIcon: ArrowDown,
       checks: [
         { label: "Distribution configured", value: "Done", done: true },
-        { label: `${claimType} deployed`, value: "Pending", done: false },
+        { label: `${claimTypeLabel} deployed`, value: "Pending", done: false },
       ],
     }
   }
@@ -277,7 +284,7 @@ function nextAction(d: Distribution, nextLabel: string | null): {
       icon: UserPlus,
       ctaIcon: ArrowDown,
       checks: [
-        { label: `${claimType} deployed`, value: "Done", done: true },
+        { label: `${claimTypeLabel} deployed`, value: "Done", done: true },
         { label: recipientLabel, value: "Needed", done: false },
         { label: "Published", value: "Pending", done: false },
       ],
@@ -291,7 +298,7 @@ function nextAction(d: Distribution, nextLabel: string | null): {
     cta: "Share claim page",
     icon: Megaphone,
     checks: [
-      { label: `${claimType} deployed`, value: "Done", done: true },
+      { label: `${claimTypeLabel} deployed`, value: "Done", done: true },
       { label: "Recipients ready", value: "Done", done: true },
       { label: "Published", value: "Live", done: true },
     ],

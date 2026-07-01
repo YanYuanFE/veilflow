@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { ArrowRight, Database, Eye, EyeOff, LockKeyhole, MonitorSmartphone, Send, ServerCog, Split, TrendingUp } from "lucide-react"
+import { ArrowRight, Database, Eye, EyeOff, KeyRound, LockKeyhole, MonitorSmartphone, Send, ServerCog, Split, TrendingUp } from "lucide-react"
 import { Logomark } from "@/components/logomark"
 import { HeroGradient } from "@/components/hero-gradient"
 import { HeroSeal } from "@/components/hero-seal"
@@ -73,13 +73,16 @@ const INSTRUMENTS = [
 ]
 
 const ROWS: ConsoleRowData[] = [
-  { index: "#001", addr: "0x8f2e...91c3", sealed: "SEALED: 0x9f...24", amount: "2,015.31 cUSDT" },
-  { index: "#002", addr: "0x12a4...ff08", sealed: "SEALED: 0x74...b8", amount: "7,527.37 cUSDT" },
-  { index: "#003", addr: "0xbc92...44e1", sealed: "SEALED: 0x31...0c", amount: "4,300.00 cUSDT" },
-  { index: "#004", addr: "0x7d01...aa52", sealed: "SEALED: 0xaa...52", amount: "8,829.89 cUSDT" },
+  { index: "#001", addr: "0x8f2e...91c3", amount: "2,015.31 cUSDT" },
+  { index: "#002", addr: "0x12a4...ff08", amount: "7,527.37 cUSDT" },
+  { index: "#003", addr: "0xbc92...44e1", amount: "4,300.00 cUSDT" },
+  { index: "#004", addr: "0x7d01...aa52", amount: "8,829.89 cUSDT" },
 ]
 
-type ConsoleRowData = { index: string; addr: string; sealed: string; amount: string }
+// Masked stand-in for an encrypted amount, shown until the key-holder unseals it.
+const SEALED_MASK = "* * * * *"
+
+type ConsoleRowData = { index: string; addr: string; amount: string }
 
 export function VariantLanding() {
   return (
@@ -253,41 +256,84 @@ export function VariantLanding() {
               ))}
             </div>
           </div>
-          <p className="vl-console-note">Hover a row to reveal a fixed key-holder sample.</p>
+          <p className="vl-console-note">
+            Click a row to unseal a sample — the way the key-holder decrypts their own figure, with a wallet signature.
+          </p>
         </section>
       </main>
 
       <footer className="vl-footer">
-        <div>© 2026 VeilFlow Infrastructure</div>
-        <div className="vl-footer-links">
-          <a href="https://github.com/YanYuanFE/veilflow" target="_blank" rel="noreferrer">GitHub</a>
-          <Link to="/docs">Documentation</Link>
+        <div className="vl-footer-top">
+          <div className="vl-footer-brand">
+            <Link to="/" className="vl-footer-logo">
+              <Logomark className="vl-footer-logo-mark" />
+              VEILFLOW
+            </Link>
+            <p className="vl-footer-tagline">
+              Confidential token distribution on FHEVM.
+              <br />
+              Airdrops, vesting, disperse — every amount encrypted.
+            </p>
+            <a className="vl-footer-social" href="https://github.com/YanYuanFE/veilflow" target="_blank" rel="noreferrer">
+              <GithubMark className="vl-footer-social-mark" />
+              GitHub
+            </a>
+          </div>
+
+          <nav className="vl-footer-col">
+            <span className="vl-footer-col-title">Protocol</span>
+            <a href="#instruments">How it works</a>
+            <a href="#infrastructure">Privacy model</a>
+            <a href="#trust-boundary">Trust boundary</a>
+            <a href="#console-preview">The console</a>
+          </nav>
+
+          <nav className="vl-footer-col">
+            <span className="vl-footer-col-title">Resources</span>
+            <Link to="/docs">Documentation</Link>
+            <a href="https://github.com/YanYuanFE/veilflow" target="_blank" rel="noreferrer">GitHub</a>
+            <a href="https://docs.zama.ai" target="_blank" rel="noreferrer">Zama Docs</a>
+          </nav>
+        </div>
+
+        <div className="vl-footer-bottom">
+          <span>© 2026 VeilFlow</span>
+          <span>Built on Zama FHEVM</span>
         </div>
       </footer>
     </div>
   )
 }
 
-/** A console row: hover (or keyboard focus) reveals the key-holder sample —
- *  hovering is more discoverable than a click on the landing demo. */
-function ConsoleRow({ index, addr, sealed, amount }: ConsoleRowData) {
+/** GitHub mark — inlined because lucide dropped its brand icons. */
+function GithubMark({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  )
+}
+
+/** A console row: an explicit click toggles the reveal — standing in for the
+ *  key-holder decrypting their own figure. Hover only highlights (affordance);
+ *  it does not unseal, so the demo doesn't imply "hovering decrypts." */
+function ConsoleRow({ index, addr, amount }: ConsoleRowData) {
   const [revealed, setRevealed] = useState(false)
   return (
     <button
       type="button"
-      className="vl-row"
-      onPointerEnter={() => setRevealed(true)}
-      onPointerLeave={() => setRevealed(false)}
-      onFocus={() => setRevealed(true)}
-      onBlur={() => setRevealed(false)}
-      aria-label={`Reveal sample encrypted amount for ${addr}`}
+      className={revealed ? "vl-row is-revealed" : "vl-row"}
+      onClick={() => setRevealed((v) => !v)}
+      aria-pressed={revealed}
+      title={revealed ? "Re-seal sample" : "Unseal this sample, as the key-holder would"}
+      aria-label={`${revealed ? "Re-seal" : "Unseal"} the sample amount for ${addr}`}
     >
       <div>{index}</div>
       <div>{addr}</div>
-      <div className="vl-encrypted-val">{revealed ? amount : sealed}</div>
+      <div className="vl-encrypted-val">{revealed ? amount : SEALED_MASK}</div>
       <div className="vl-status-shielded">
-        {revealed ? <Eye size={14} strokeWidth={2} aria-hidden /> : <LockKeyhole size={14} strokeWidth={2} aria-hidden />}
-        {revealed ? "DECRYPTED" : "SHIELDED"}
+        {revealed ? <Eye size={14} strokeWidth={2} aria-hidden /> : <KeyRound size={14} strokeWidth={2} aria-hidden />}
+        {revealed ? "DECRYPTED" : "SEALED"}
       </div>
     </button>
   )

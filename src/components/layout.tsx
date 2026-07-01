@@ -71,7 +71,7 @@ export function Layout() {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-1.5 px-6 py-5 text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <Kicker>Veilflow — confidential distribution console</Kicker>
-          <Kicker className="tracking-[0.16em]">TokenOps SDK · Zama FHE · Sepolia</Kicker>
+          <Kicker className="tracking-[0.16em]">Powered by Zama & TokenOps</Kicker>
         </div>
       </footer>
     </div>

@@ -154,6 +154,9 @@
         letter-spacing: -0.022em;
         font-feature-settings: "liga";
     }
+    button, [role="button"] {
+        cursor: pointer;
+    }
 }
 
 /* The censor bar — solid ink with a faint redaction-tape hatch */

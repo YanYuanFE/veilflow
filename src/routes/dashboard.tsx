@@ -80,7 +80,7 @@ function DistributionRow({ d }: { d: Distribution }) {
     <li>
       <Link
         to={`/d/${d.id}`}
-        className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_8rem]"
+        className="group -mx-4 grid grid-cols-[1fr_auto] items-center gap-x-6 gap-y-2 rounded-md px-4 py-5 transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_11rem]"
       >
         <div className="min-w-0">
           <h3 className="font-display truncate text-xl tracking-tight text-foreground">
@@ -100,7 +100,7 @@ function DistributionRow({ d }: { d: Distribution }) {
         </div>
         <div className="col-start-2 row-start-1 flex flex-col items-end gap-1.5 sm:col-start-3">
           <StatusBadge status={d.status} />
-          {next && <Kicker className="text-foreground/70">Next · {next}</Kicker>}
+          {next && <Kicker className="text-balance text-right leading-snug text-foreground/70">Next · {next}</Kicker>}
         </div>
       </Link>
     </li>

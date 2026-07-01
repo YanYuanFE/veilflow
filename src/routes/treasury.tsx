@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useLocation, useSearchParams } from "react-router-dom"
 import { isAddress, parseUnits, formatUnits, erc20Abi, type Address, type Hex } from "viem"
-import { useAccount, useReadContract } from "wagmi"
+import { useAccount, useReadContract, useWriteContract } from "wagmi"
 import { toast } from "sonner"
 import {
   useShield,
@@ -10,9 +10,11 @@ import {
   useConfidentialBalance,
   useIsWrapper,
   useConfidentialTokenAddress,
+  useListPairs,
   loadPendingUnshield,
   clearPendingUnshield,
   indexedDBStorage,
+  type TokenWrapperPairWithMetadata,
 } from "@zama-fhe/react-sdk"
 import { useTokenDecimals, useUnderlyingToken } from "@/lib/tokens"
 import { Button } from "@/components/ui/button"
@@ -22,8 +24,109 @@ import { Redaction } from "@/components/ui/redaction"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Kicker, Notice } from "@/components/editorial"
 import { shortAddr } from "@/lib/format"
+import { useConfirmTx } from "@/lib/use-confirm-tx"
+import { ChainGate } from "@/components/chain-gate"
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address
+
+// The Sepolia underlying ERC-20s are open mocks with a public mint faucet.
+const MINT_ABI = [
+  {
+    type: "function",
+    name: "mint",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const
+const FAUCET_AMOUNT = "10000" // human units of the underlying ERC-20
+
+// One-click faucet: mint the underlying ERC-20 to the connected wallet so it can
+// then be wrapped. ponytail: assumes the Sepolia mock's open mint(addr,uint256);
+// a real token without a public mint just reverts into the toast.
+function MintFaucet({ underlying, decimals, onMinted }: { underlying: Address; decimals: number | undefined; onMinted: () => void }) {
+  const { address, isConnected } = useAccount()
+  const { writeContractAsync } = useWriteContract()
+  const confirm = useConfirmTx()
+  const [busy, setBusy] = useState(false)
+
+  const onMint = async () => {
+    if (!address || decimals === undefined) return
+    setBusy(true)
+    try {
+      const hash = await writeContractAsync({
+        address: underlying,
+        abi: MINT_ABI,
+        functionName: "mint",
+        args: [address, parseUnits(FAUCET_AMOUNT, decimals)],
+      })
+      await confirm(hash)
+      onMinted()
+      toast.success(`Minted ${FAUCET_AMOUNT} test tokens`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-sm border border-dashed border-border bg-muted/10 px-4 py-3">
+      <div className="min-w-0">
+        <Kicker className="tracking-[0.12em]">Need test tokens?</Kicker>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Mint {FAUCET_AMOUNT} of the underlying ERC-20 ({shortAddr(underlying)}) to your wallet, then wrap it.
+        </p>
+      </div>
+      <ChainGate>
+        <Button size="sm" variant="outline" disabled={!isConnected || decimals === undefined || busy} onClick={onMint}>
+          {busy ? "Minting…" : "Mint"}
+        </Button>
+      </ChainGate>
+    </div>
+  )
+}
+
+// Tokens that can actually be wrapped: only ERC-20s with a confidential wrapper
+// already registered on-chain. There's no on-demand wrapper deployment, so an
+// arbitrary token won't work — listing the registry prevents a dead-end paste.
+function SupportedTokens({ onPick }: { onPick: (confidentialToken: Address) => void }) {
+  const pairsQ = useListPairs({ page: 1, pageSize: 50, metadata: true })
+  const pairs = ((pairsQ.data?.items ?? []) as readonly TokenWrapperPairWithMetadata[]).filter((p) => p.isValid)
+
+  return (
+    <div className="space-y-2 rounded-sm border border-border bg-muted/20 p-3">
+      <Kicker className="tracking-[0.12em]">Supported tokens</Kicker>
+      <p className="text-xs text-muted-foreground">
+        Only ERC-20s with a registered confidential wrapper can be wrapped. Pick one to fill it in.
+      </p>
+      {pairsQ.isLoading && <p className="text-xs text-muted-foreground">Loading the wrappers registry…</p>}
+      {pairsQ.error && <p className="text-xs text-destructive">Couldn't load supported tokens: {pairsQ.error.message}</p>}
+      {pairsQ.data && pairs.length === 0 && (
+        <p className="text-xs text-muted-foreground">No confidential wrappers are registered on this network yet.</p>
+      )}
+      {pairs.length > 0 && (
+        <ul className="divide-y divide-border">
+          {pairs.map((p) => (
+            <li key={p.confidentialTokenAddress} className="flex items-center justify-between gap-3 py-2">
+              <span className="min-w-0 truncate text-sm text-foreground">
+                <span className="font-medium">{p.underlying.symbol}</span>
+                <span className="text-muted-foreground"> → {p.confidential.symbol}</span>{" "}
+                <span className="font-mono text-xs text-muted-foreground">{shortAddr(p.confidentialTokenAddress)}</span>
+              </span>
+              <Button size="sm" variant="outline" onClick={() => onPick(p.confidentialTokenAddress)}>
+                Select
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 // Underlined "Max" affordance in the amount label row — fills the input with the full balance.
 function MaxButton({ onClick }: { onClick: () => void }) {
@@ -143,8 +246,8 @@ function WrapPanel() {
           {valid && wrapperCheck.isLoading && <p className="text-xs text-muted-foreground">Checking token…</p>}
           {valid && wrapperCheck.data === false && !discovered && (
             <p className="text-sm text-destructive">
-              Not a confidential ERC-7984 wrapper. Paste the confidential token address (e.g. cUSDT 0x4E7B…4491), not the
-              underlying ERC-20.
+              No confidential wrapper exists for this token, so it can't be wrapped. Only registered tokens can — pick one
+              from Supported tokens below.
             </p>
           )}
           {valid && wrapperCheck.data === false && discovered && (
@@ -162,6 +265,8 @@ function WrapPanel() {
           )}
           {valid && wrapperCheck.error && <p className="text-sm text-destructive">Couldn't verify token: {wrapperCheck.error.message}</p>}
         </div>
+
+        {!isWrapper && <SupportedTokens onPick={setToken} />}
 
         {valid && isWrapper && (
           <div className="flex items-center justify-between gap-4 rounded-sm border border-border bg-muted/20 px-4 py-3">
@@ -185,6 +290,10 @@ function WrapPanel() {
           </div>
         )}
 
+        {valid && isWrapper && underlyingToken && (
+          <MintFaucet underlying={underlyingToken} decimals={underlyingDecimals} onMinted={() => underlyingBalance.refetch()} />
+        )}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="wrap-amount">Amount to wrap</Label>
@@ -193,12 +302,14 @@ function WrapPanel() {
           <Input id="wrap-amount" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 
-        <Button
-          onClick={onWrap}
-          disabled={!isConnected || !valid || !isWrapper || !amount || underlyingDecimals === undefined || shield.isPending}
-        >
-          {shield.isPending ? "Wrapping…" : "Wrap"}
-        </Button>
+        <ChainGate>
+          <Button
+            onClick={onWrap}
+            disabled={!isConnected || !valid || !isWrapper || !amount || underlyingDecimals === undefined || shield.isPending}
+          >
+            {shield.isPending ? "Wrapping…" : "Wrap"}
+          </Button>
+        </ChainGate>
         {!isConnected && <p className="text-sm text-muted-foreground">Connect your wallet to wrap.</p>}
         {shield.error && <p className="text-sm text-destructive">{shield.error.message}</p>}
       </div>
@@ -343,12 +454,14 @@ function UnwrapPanel() {
           <Input id="unwrap-amount" inputMode="decimal" placeholder="0.0" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
 
-        <Button
-          onClick={onUnwrap}
-          disabled={!isConnected || !valid || !isWrapper || !amount || decimals === undefined || unshield.isPending}
-        >
-          {unshield.isPending ? "Unwrapping…" : "Unwrap"}
-        </Button>
+        <ChainGate>
+          <Button
+            onClick={onUnwrap}
+            disabled={!isConnected || !valid || !isWrapper || !amount || decimals === undefined || unshield.isPending}
+          >
+            {unshield.isPending ? "Unwrapping…" : "Unwrap"}
+          </Button>
+        </ChainGate>
         {!isConnected && <p className="text-sm text-muted-foreground">Connect your wallet to unwrap.</p>}
         {unshield.error && <p className="text-sm text-destructive">{unshield.error.message}</p>}
       </div>

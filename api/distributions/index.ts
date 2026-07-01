@@ -16,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return methodNotAllowed(res, ["GET", "POST"])
   } catch (e) {
     if (e instanceof HttpError) return bad(res, e.message, e.status)
-    if (isUniqueViolation(e)) return bad(res, "Slug already taken", 409)
+    if (isUniqueViolation(e)) return bad(res, "That slug is already taken — pick another one.", 409)
     throw e
   }
 }

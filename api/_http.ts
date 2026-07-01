@@ -32,10 +32,17 @@ export class HttpError extends Error {
   }
 }
 
-// Postgres unique-constraint violation — callers map this to a 409.
+// Postgres unique-constraint violation — callers map this to a 409. Drizzle wraps
+// the driver error, so the pg 23505 code / "duplicate key" text lives on a nested
+// `cause`, not the top-level "Failed query: …" wrapper — walk the cause chain.
 export function isUniqueViolation(e: unknown): boolean {
-  if (typeof e !== "object" || e === null) return false
-  const code = (e as { code?: unknown }).code
-  const msg = (e as { message?: unknown }).message
-  return code === "23505" || (typeof msg === "string" && msg.includes("duplicate key"))
+  let cur: unknown = e
+  for (let depth = 0; depth < 5 && cur && typeof cur === "object"; depth++) {
+    const code = (cur as { code?: unknown }).code
+    const msg = (cur as { message?: unknown }).message
+    if (code === "23505") return true
+    if (typeof msg === "string" && msg.includes("duplicate key")) return true
+    cur = (cur as { cause?: unknown }).cause
+  }
+  return false
 }

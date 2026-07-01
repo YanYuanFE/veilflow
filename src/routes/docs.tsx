@@ -10,8 +10,9 @@ const SECTIONS = [
   { id: "vesting-actions", label: "Managing a vesting" },
   { id: "disclosure", label: "Selective disclosure" },
   { id: "admin", label: "Admin controls" },
+  { id: "fees", label: "Fees" },
   { id: "branding", label: "Branded claim pages" },
-  { id: "wrap", label: "Wrapping tokens" },
+  { id: "wrap", label: "Supported tokens" },
   { id: "architecture", label: "Architecture" },
   { id: "contracts", label: "Network & contracts" },
 ]
@@ -20,7 +21,7 @@ const CONTRACTS = [
   { name: "Airdrop factory", addr: "0xbE6A3B78B36684fFee48De77d47Bc3393F5Acd4c" },
   { name: "Disperse singleton", addr: "0x710dD9885Cc9986EfD234E7719483147a6d8DBb4" },
   { name: "Wrappers registry", addr: "0x2f0750Bbb0A246059d80e94c454586a7F27a128e" },
-  { name: "cUSDT · confidential", addr: "0x4E7B06D78965594eB5EF5414c357ca21E1554491" },
+  { name: "cUSDT · example token", addr: "0x4E7B06D78965594eB5EF5414c357ca21E1554491" },
 ]
 
 export function Docs() {
@@ -105,13 +106,17 @@ export function Docs() {
               single-use.
             </Term>
             <Term name="Vesting">
-              A per-token vesting manager with linear unlock — cliff, initial unlock, and a release interval. Recipients
-              are added in batches; each grant pulls its amount from the issuer's confidential balance. Recipients claim
-              the vested portion over time and return as more unlocks.
+              A per-token vesting manager with linear unlock — an initial unlock at start, an optional cliff (with its
+              own unlock percentage), a release interval, and a timelock that delays when released tokens become
+              claimable. Recipients are added in batches, each grant pulling its amount from the issuer's confidential
+              balance, and claim the vested portion over time. A manager can be made revocable by the admin, and can let
+              recipients split a grant.
             </Term>
             <Term name="Disperse">
-              One encrypted batch sent directly into each recipient's confidential balance. There is no claim step — the
-              tokens simply arrive, and recipients read them on the token page.
+              One encrypted batch sent straight into each recipient's confidential balance — no claim step; the tokens
+              simply arrive. Three modes: direct (from your balance via the singleton operator), or routed through two
+              subwallets with the per-recipient fee paid in ETH (wallet) or in tokens (wallet · token-fee). Wallet modes
+              can leave dust, so a residual-recovery sweep returns it to your balance.
             </Term>
           </Section>
 
@@ -122,7 +127,7 @@ export function Docs() {
             </P>
             <Steps
               steps={[
-                ["Configure", "Name it, choose the instrument, pick the confidential token and the schedule (claim window, or vesting cliff / interval / initial unlock)."],
+                ["Configure", "Name it, choose the instrument, pick the confidential token and the schedule — an airdrop claim window, or the full vesting shape: start/end, cliff and cliff-unlock %, release interval, initial unlock %, timelock, and whether it's revocable or splittable."],
                 ["Deploy & fund", "Deploy the contract on-chain. Airdrops approve the factory as operator, then deploy and fund the pool in one flow; vesting deploys a manager that pulls from your balance per grant."],
                 ["Add recipients", "Paste or upload address + amount rows. Amounts are encrypted client-side; a preview reconciles the batch total against the funded balance so a claim never fails under-funded. Vesting recipients are created in batches sized to the manager's limit."],
                 ["Go live", "Flip the distribution live and share the claim link."],
@@ -181,14 +186,36 @@ export function Docs() {
           </Section>
 
           <Section id="admin" title="Admin controls">
-            <P>From the distribution console, an airdrop issuer can:</P>
-            <List
-              items={[
-                "Pause or resume claims.",
-                "Extend the claim window (when the distribution was created as extendable).",
-                "Withdraw whatever remains unclaimed after the window.",
-              ]}
-            />
+            <P>
+              Once deployed, a distribution exposes a management surface to its creator — and to any wallet granted the
+              on-chain admin role, so operations can be delegated. The controls differ by instrument:
+            </P>
+            <Term name="Airdrop">
+              Pause or resume claims, extend the claim window (when created extendable), withdraw whatever remains
+              unclaimed, reclaim the ETH gas fees recipients paid on claim, top up the pool so newly added recipients
+              stay covered, rescue stray tokens, and grant or revoke the admin role.
+            </Term>
+            <Term name="Vesting">
+              Pause or resume, and — from the Advanced drawer — delegate any of eight granular roles (pauser, revoker,
+              withdrawer, fee collector, disclosure admin, vesting creator, claimer, admin), collect fees, withdraw
+              surplus, or rescue stray tokens (Treasury), claim on a recipient's behalf, and decrypt any recipient's
+              figures with admin permission (Admin views). A manager created revocable can also be revoked.
+            </Term>
+          </Section>
+
+          <Section id="fees" title="Fees">
+            <P>
+              Claims can carry a fee, and recipients — not the issuer — pay it. The rate is not the issuer's to set: it
+              is baked into the contract at deploy from the factory's per-creator override, or the factory default. The
+              create flow discloses the effective rate before you deploy.
+            </P>
+            <P>
+              Airdrops charge a flat <Code>ETH</Code> gas fee per claim. Vesting managers charge either a gas fee or a
+              token fee — a percentage in basis points deducted from each claim — depending on the factory's fee type.
+              Disperse fees are mode-dependent (a per-recipient ETH fee in direct and wallet modes, a token-percentage
+              fee in wallet · token-fee mode) and are shown in the panel's pre-flight. Collected fees are withdrawn from
+              Admin controls by whoever holds the fee-collector role.
+            </P>
           </Section>
 
           <Section id="branding" title="Branded claim pages">
@@ -200,11 +227,19 @@ export function Docs() {
             </P>
           </Section>
 
-          <Section id="wrap" title="Wrapping tokens">
+          <Section id="wrap" title="Supported tokens & wrapping">
             <P>
-              Confidential distributions move ERC-7984 tokens. To get them, wrap a standard ERC-20 into its confidential
-              counterpart on the Wrap page; unwrap reverses it. Balances of the confidential token are themselves
-              encrypted and revealed with the same decrypt step used everywhere else.
+              VeilFlow works with <strong className="font-medium text-foreground">any confidential ERC-7984 token</strong> —
+              paste its address when you create a distribution. The cUSDT below is just a reference token on Sepolia, not
+              the only one supported.
+            </P>
+            <P>
+              A confidential token is the encrypted counterpart of an ERC-20 that has a registered wrapper in the{" "}
+              <Code>Wrappers registry</Code>. Wrapping is only available for tokens already in that registry — not for an
+              arbitrary ERC-20. The Wrap page lists the supported tokens; pick one (or paste its confidential or
+              underlying address), then wrap (shield) to deposit the ERC-20 into an encrypted balance. Unwrap (unshield)
+              reverses it, and those balances are themselves encrypted — revealed with the same decrypt step used
+              everywhere else.
             </P>
           </Section>
 
@@ -223,8 +258,9 @@ export function Docs() {
 
           <Section id="contracts" title="Network & contracts">
             <P>
-              VeilFlow runs on <strong className="font-medium text-foreground">Sepolia</strong>. Confidential tokens use
-              6 decimals (the Zama convention); the vesting factory is resolved by chain id through the SDK.
+              VeilFlow runs on <strong className="font-medium text-foreground">Sepolia</strong> and accepts any
+              confidential ERC-7984 token — the cUSDT address below is a reference token, not a restriction. Confidential
+              tokens use 6 decimals (the Zama convention); the vesting factory is resolved by chain id through the SDK.
             </P>
             <dl className="mt-2 divide-y divide-border">
               {CONTRACTS.map((c) => (
@@ -297,18 +333,5 @@ function Steps({ steps }: { steps: [string, string][] }) {
         </li>
       ))}
     </ol>
-  )
-}
-
-function List({ items }: { items: string[] }) {
-  return (
-    <ul className="max-w-[64ch] space-y-1.5">
-      {items.map((it) => (
-        <li key={it} className="flex gap-2.5 text-[0.9375rem] leading-relaxed text-muted-foreground">
-          <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/60" aria-hidden />
-          <span>{it}</span>
-        </li>
-      ))}
-    </ul>
   )
 }

@@ -139,7 +139,9 @@ export function BrandingDialog({ d }: { d: Distribution }) {
           </div>
         )}
 
-        {/* Live preview of the claim page chrome */}
+        {/* Live preview of the claim page chrome — mirrors ClaimFrame in claim.tsx:
+            branded header with the Connect Wallet control, centered title/description
+            (with the same defaults), the sealed allocation row, and the reveal CTA. */}
         <div>
           <Kicker className="tracking-[0.12em]">Preview</Kicker>
           <div
@@ -147,25 +149,38 @@ export function BrandingDialog({ d }: { d: Distribution }) {
             style={{ "--primary": accent, "--primary-foreground": readableInk(accent) } as CSSProperties}
           >
             <div className="h-[2px] w-full bg-primary" />
-            <div className="flex items-center justify-between gap-3 bg-background px-4 py-3">
+            {/* Header: brand mark + the real Connect Wallet control (accent-tinted) */}
+            <div className="flex items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
               {logoUrl ? (
                 <img src={logoUrl} alt="" className="h-6 max-w-[140px] object-contain" />
               ) : (
                 <span className="font-display text-lg text-foreground">{d.name}</span>
               )}
-              <span className="rounded-sm bg-primary px-2 py-1 text-[0.6875rem] font-semibold text-primary-foreground">Decrypt</span>
+              <span className="rounded-md bg-primary px-2.5 py-1 text-[0.6875rem] font-semibold text-primary-foreground">
+                Connect wallet
+              </span>
             </div>
-            <div className="bg-background px-4 pb-4">
-              {(title || description) && (
-                <div className="mb-3 space-y-1">
-                  {title && <p className="font-display text-base text-foreground">{title}</p>}
-                  {description && <p className="font-sans text-sm text-muted-foreground">{description}</p>}
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-3 rounded-sm border border-border bg-card px-3 py-2">
+            {/* Centered claim body */}
+            <div className="space-y-4 bg-background px-4 py-6 text-center">
+              <div className="space-y-1.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="size-1 rounded-full bg-primary" aria-hidden />
+                  <span className="font-mono text-[0.5625rem] font-medium tracking-[0.12em] text-muted-foreground uppercase">
+                    Confidential claim · {d.type}
+                  </span>
+                </span>
+                <p className="font-display text-xl leading-tight text-foreground">{title || d.name}</p>
+                <p className="mx-auto max-w-[40ch] font-sans text-xs leading-relaxed text-muted-foreground">
+                  {description || "Only you can see your allocation — it stays sealed until you decrypt it with your wallet."}
+                </p>
+              </div>
+              <div className="mx-auto flex max-w-xs items-center justify-between gap-3 rounded-sm border border-border bg-card px-3 py-2">
                 <span className="text-[0.625rem] font-semibold tracking-[0.12em] text-muted-foreground uppercase">Your allocation</span>
                 <span className="veil-bar inline-block h-[1.05em] w-20 rounded-[2px]" />
               </div>
+              <span className="inline-block rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                Reveal my allocation
+              </span>
             </div>
           </div>
         </div>
